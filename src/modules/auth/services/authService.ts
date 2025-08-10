@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { AuthRepository, IAuthRepository } from '@/repositories/implementations/authRepository'
 import { RegisterRequest, AuthResponse, UserInfo, UserRole } from '@/types/auth'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 
 export class AuthService {
   private authRepository: IAuthRepository
@@ -65,4 +66,48 @@ export class AuthService {
       throw new Error('Kayıt işlemi başarısız')
     }
   }
+
+  async login({ identifier, password }: { identifier: string, password: string }) {
+    // identifier: e-posta veya kullanıcı adı olabilir
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { username: identifier }
+        ]
+      }
+    })
+
+    if (!user) {
+      throw new Error('Kullanıcı bulunamadı')
+    }
+
+    const isValid = await bcrypt.compare(password, user.password)
+    if (!isValid) {
+      throw new Error('Geçersiz şifre')
+    }
+
+    // JWT üretimi
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role
+      },
+      process.env.JWT_SECRET || 'gizliAnahtar', // .env dosyasından alınmalı
+      { expiresIn: '7d' }
+    )
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      username: user.username,
+      role: user.role,
+      token
+    }
+  }
+
 }
+

@@ -1,119 +1,68 @@
-import { hashPassword, comparePassword, generateToken } from '@/utils/auth'
-import { CreateUserRequest, User } from '@/types'
-import { UserRepository } from '@/repositories/implementations/userRepository'
-import { Logger } from '@/utils/logger'
+// Sadece register işlemi için sade AuthService
 import { prisma } from '@/lib/prisma'
+import { AuthRepository, IAuthRepository } from '@/repositories/implementations/authRepository'
+import { RegisterRequest, AuthResponse, UserInfo, UserRole } from '@/types/auth'
+import bcrypt from 'bcryptjs'
 
-export interface LoginRequest {
-  email: string
-  password: string
-}
+export class AuthService {
+  private authRepository: IAuthRepository
 
-export interface LoginResponse {
-  user: Omit<User, 'password'>
-  token: string
-}
-
-export interface IAuthService {
-  register(userData: CreateUserRequest): Promise<Omit<User, 'password'>>
-  login(credentials: LoginRequest): Promise<LoginResponse>
-  validateToken(token: string): Promise<User | null>
-  changePassword(userId: string, oldPassword: string, newPassword: string): Promise<void>
-  deactivateUser(userId: string): Promise<void>
-}
-
-export class AuthService implements IAuthService {
-  constructor(
-    private userRepository: UserRepository,
-    private logger: Logger
-  ) {}
-
-  // Factory method
-  static create(): IAuthService {
-    const userRepository = new UserRepository(prisma)
-    const logger = new Logger()
-    return new AuthService(userRepository, logger)
+  constructor(authRepository?: IAuthRepository) {
+    this.authRepository = authRepository || new AuthRepository(prisma)
   }
 
-  async register(userData: CreateUserRequest): Promise<Omit<User, 'password'>> {
-    const existingUser = await this.userRepository.findByEmail(userData.email)
-
-    if (existingUser) {
-      throw new Error('User already exists')
-    }
-
-    const hashedPassword = await hashPassword(userData.password)
-
-    const user = await this.userRepository.create({
-      email: userData.email,
-      password: hashedPassword,
-      name: userData.name,
-      role: userData.role || 'USER'
-    })
-
-    const { password, ...userWithoutPassword } = user
-    return userWithoutPassword
-  }
-
-  async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const user = await this.userRepository.findByEmail(credentials.email)
-
-    if (!user) {
-      throw new Error('Invalid credentials')
-    }
-
-    const isValidPassword = await comparePassword(credentials.password, user.password)
-
-    if (!isValidPassword) {
-      throw new Error('Invalid credentials')
-    }
-
-    if (!user.isActive) {
-      throw new Error('User account is deactivated')
-    }
-
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role
-    })
-
-    const { password, ...userWithoutPassword } = user
-
-    return {
-      user: userWithoutPassword,
-      token
-    }
-  }
-
-  async validateToken(token: string): Promise<User | null> {
+  // Sadece kullanıcı kaydı
+  async register(userData: RegisterRequest): Promise<AuthResponse> {
     try {
-      // Token validation logic here
-      // This would typically decode and verify the JWT token
-      return null
+      const { email, password, firstName, lastName, username, role } = userData
+
+      // Email kontrolü
+      const existingEmail = await this.authRepository.findByEmail(email)
+      if (existingEmail) {
+        throw new Error('Bu email zaten kayıtlı')
+      }
+
+      // Username kontrolü
+      const existingUsername = await this.authRepository.findByUsername(username)
+      if (existingUsername) {
+        throw new Error('Bu kullanıcı adı zaten kayıtlı')
+      }
+
+      // Şifreyi hashle
+      const hashedPassword = await bcrypt.hash(password, 10)
+
+      // Kullanıcıyı oluştur
+      const user = await this.authRepository.createUser({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        username,
+        role: role || UserRole.USER
+      })
+
+      // Kullanıcı bilgilerini temizle
+      const userInfo: UserInfo = {
+        id: Number(user.id),
+        email: user.email,
+        name: user.name,
+        username: (user as any).username || undefined,
+        code: (user as any).code || undefined,
+        role: user.role as UserRole,
+        department: (user as any).department || undefined,
+        language: (user as any).language || undefined
+      }
+
+      return {
+        message: 'Kayıt başarılı',
+        token: '', // Token üretimi yok, sadece kayıt mesajı
+        user: userInfo
+      }
     } catch (error) {
-      return null
+      if (error instanceof Error) {
+        throw new Error(error.message)
+      }
+      throw new Error('Kayıt işlemi başarısız')
     }
   }
-
-  async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<void> {
-    const user = await this.userRepository.findById(userId)
-
-    if (!user) {
-      throw new Error('User not found')
-    }
-
-    const isValidPassword = await comparePassword(oldPassword, user.password)
-
-    if (!isValidPassword) {
-      throw new Error('Invalid old password')
-    }
-
-    const hashedNewPassword = await hashPassword(newPassword)
-    await this.userRepository.updatePassword(userId, hashedNewPassword)
-  }
-
-  async deactivateUser(userId: string): Promise<void> {
-    await this.userRepository.deactivateUser(userId)
-  }
-} 
+}

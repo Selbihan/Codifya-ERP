@@ -1,191 +1,295 @@
-// Temel API Response tipleri
-export interface ApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
-  meta?: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-  details?: Record<string, any>;
-}
+// Core Types for Codifya ERP System
+// Generated at: 2025-08-07
 
-// Kullanıcı tipleri
+// ===============================
+// USER TYPES
+// ===============================
+
+export type UserRole = 'ADMIN' | 'MANAGER' | 'USER'
+
 export interface User {
-  id: string;
-  email: string;
-  name: string;
-  password: string;
-  role: 'ADMIN' | 'MANAGER' | 'USER';
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  id: number
+  email: string
+  password: string
+  name: string
+  username?: string | null
+  role: UserRole
+  department?: string | null
+  language?: string | null
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date | null
+  code?: string | null
+  
+  // Audit fields
+  createdBy?: number | null
+  updatedBy?: number | null
+  deletedBy?: number | null
 }
 
-export interface CreateUserRequest {
-  email: string;
-  password: string;
-  name: string;
-  role?: 'ADMIN' | 'MANAGER' | 'USER';
+export interface UserInfo {
+  id: number
+  email: string
+  name: string
+  username?: string | null
+  role: UserRole
+  department?: string | null
+  isActive: boolean
 }
 
-// Kategori tipi
-export interface Category {
-  id: string;
-  name: string;
-  description: string | null;
-  parentId: string | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  products?: Product[];
-}
+// ===============================
+// CUSTOMER TYPES
+// ===============================
 
-// Müşteri tipleri
 export interface Customer {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  company: string | null;
-  taxNumber: string | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;
-  createdByUser?: User;
-  orders?: Order[];
-  invoices?: Invoice[];
+  id: string
+  name: string
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  company?: string | null
+  taxNumber?: string | null
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+  createdBy: number
 }
 
-export interface CreateCustomerRequest {
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  company?: string;
-  taxNumber?: string;
+// ===============================
+// PRODUCT TYPES
+// ===============================
+
+export interface Category {
+  id: string
+  name: string
+  description?: string | null
+  parentId?: string | null
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 
-// Ürün tipleri
 export interface Product {
-  id: string;
-  name: string;
-  description: string | null;
-  sku: string;
-  price: number;
-  cost: number;
-  stock: number;
-  minStock: number;
-  category: Category | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;
-  createdByUser?: User;
+  id: string
+  name: string
+  description?: string | null
+  sku: string
+  price: number
+  cost: number
+  stock: number
+  minStock: number
+  categoryId?: string | null
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+  createdBy: number
 }
 
-export interface CreateProductRequest {
-  name: string;
-  description?: string;
-  sku: string;
-  price: number;
-  cost: number;
-  stock: number;
-  minStock?: number;
-  category?: string;
+export type StockMovementType = 'IN' | 'OUT' | 'ADJUSTMENT'
+
+export interface StockMovement {
+  id: string
+  productId: string
+  type: StockMovementType
+  quantity: number
+  previousStock: number
+  newStock: number
+  reason: string
+  reference?: string | null
+  createdAt: Date
+  createdBy: number
 }
 
-// Sipariş tipleri
+// ===============================
+// ORDER TYPES
+// ===============================
+
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
+
 export interface Order {
-  id: string;
-  orderNumber: string;
-  customerId: string;
-  customer?: Customer;
-  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
-  totalAmount: number;
-  taxAmount: number;
-  discount: number;
-  notes: string | null;
-  orderDate: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;
-  createdByUser?: User;
-  items: OrderItem[];
-  payments: Payment[];
-  invoices?: Invoice[];
+  id: string
+  orderNumber: string
+  customerId: string
+  status: OrderStatus
+  totalAmount: number
+  taxAmount: number
+  discount: number
+  notes?: string | null
+  orderDate: Date
+  createdAt: Date
+  updatedAt: Date
+  createdBy: number
 }
 
 export interface OrderItem {
-  id: string;
-  orderId: string;
-  productId: string;
-  product: Product;
-  quantity: number;
-  price: number;
-  total: number;
+  id: string
+  orderId: string
+  productId: string
+  quantity: number
+  price: number
+  total: number
 }
 
-export interface CreateOrderRequest {
-  customerId: string;
-  items: CreateOrderItemRequest[];
-  notes?: string;
-  discount?: number;
-}
+// ===============================
+// PAYMENT TYPES
+// ===============================
 
-export interface CreateOrderItemRequest {
-  productId: string;
-  quantity: number;
-}
+export type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'CHECK'
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED'
 
-// Ödeme tipleri
 export interface Payment {
-  id: string;
-  orderId: string;
-  order?: Order;
-  amount: number;
-  method: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'CHECK';
-  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
-  reference: string | null;
-  paymentDate: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  id: string
+  orderId: string
+  amount: number
+  method: PaymentMethod
+  status: PaymentStatus
+  reference?: string | null
+  paymentDate: Date
+  createdAt: Date
+  updatedAt: Date
 }
 
-export interface CreatePaymentRequest {
-  orderId: string;
-  amount: number;
-  method: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'CHECK';
-  reference?: string;
-}
+// ===============================
+// INVOICE TYPES
+// ===============================
 
-// Fatura tipleri
+export type InvoiceType = 'SALES' | 'PURCHASE' | 'EXPENSE'
+export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PAID' | 'CANCELLED'
+
 export interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  orderId?: string | null;
-  order?: Order | null;
-  customerId?: string | null;
-  customer?: Customer | null;
-  type: 'SALES' | 'PURCHASE' | 'EXPENSE';
-  status: 'DRAFT' | 'SENT' | 'PAID' | 'CANCELLED';
-  subtotal: number;
-  taxAmount: number;
-  discount: number;
-  totalAmount: number;
-  dueDate: Date;
-  issueDate: Date;
-  paidDate?: Date | null;
-  notes?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;
-  createdByUser: User;
-} 
+  id: string
+  invoiceNumber: string
+  orderId?: string | null
+  customerId?: string | null
+  type: InvoiceType
+  status: InvoiceStatus
+  subtotal: number
+  taxAmount: number
+  discount: number
+  totalAmount: number
+  dueDate: Date
+  issueDate: Date
+  paidDate?: Date | null
+  notes?: string | null
+  createdAt: Date
+  updatedAt: Date
+  createdBy: number
+}
+
+// ===============================
+// TRANSACTION TYPES
+// ===============================
+
+export type TransactionType = 'INCOME' | 'EXPENSE'
+export type TransactionCategory = 'SALES' | 'PURCHASE' | 'SALARY' | 'RENT' | 'UTILITIES' | 'MARKETING' | 'OTHER'
+
+export interface Transaction {
+  id: string
+  type: TransactionType
+  category: TransactionCategory
+  amount: number
+  description: string
+  reference?: string | null
+  date: Date
+  invoiceId?: string | null
+  orderId?: string | null
+  paymentId?: string | null
+  createdAt: Date
+  updatedAt: Date
+  createdBy: number
+}
+
+// ===============================
+// FINANCIAL TYPES
+// ===============================
+
+export interface FinancialAccount {
+  id: number
+  code: string
+  description: string
+  address: string
+  country: string
+  city: string
+  district: string
+  taxOffice: string
+  taxNo?: string | null
+  taxPayerType: boolean // true = Şahıs, false = Şirket
+  idNo?: string | null
+  area: string
+  generalTel?: string | null
+  generalEmail?: string | null
+  generalName: string
+  generalLastName?: string | null
+  generalWebsite?: string | null
+  type: string // RECEIVABLE | PAYABLE | NEUTRAL
+  customerId?: number | null
+  supplierId?: number | null
+  currency?: string | null
+  parentAccountId?: number | null
+  openingBalance?: number | null
+  currentBalance?: number | null
+  creditLimit?: number | null
+  paymentTerms?: string | null
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date | null
+  createdBy: number
+  updatedBy?: number | null
+  deletedBy?: number | null
+}
+
+export interface AccountTransaction {
+  id: string
+  accountId: number
+  transactionDate: Date
+  description: string
+  debitAmount: number
+  creditAmount: number
+  balance: number
+  currency: string
+  referenceType?: string | null
+  referenceId?: string | null
+  documentNumber?: string | null
+  voucherNumber?: string | null
+  userId?: number | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+// ===============================
+// COMMON TYPES
+// ===============================
+
+export interface PaginationOptions {
+  page: number
+  pageSize: number
+}
+
+export interface PaginatedResult<T> {
+  data: T[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean
+  message?: string
+  data?: T
+  errors?: string[]
+  error?: string
+  meta?: any
+  details?: any
+}
+
+export interface AuditFields {
+  createdBy: number
+  updatedBy?: number | null
+  deletedBy?: number | null
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date | null
+}

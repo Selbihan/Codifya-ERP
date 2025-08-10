@@ -14,33 +14,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Kullanıcı Yönetimi
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      UserRole @default(USER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  // İlişkiler
-  orders    Order[]
-  customers Customer[]
-  products  Product[]
-  stockMovements StockMovement[]
-  invoices  Invoice[]
-  transactions Transaction[]
-
-  @@map("users")
-}
-
-enum UserRole {
-  ADMIN
-  MANAGER
-  USER
-}
 
 // Müşteri Yönetimi (CRM)
 model Customer {
@@ -54,7 +28,7 @@ model Customer {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  createdBy   String
+  createdBy   Int
   createdByUser User   @relation(fields: [createdBy], references: [id])
 
   // İlişkiler
@@ -97,7 +71,7 @@ model Product {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  createdBy   String
+  createdBy   Int
   createdByUser User   @relation(fields: [createdBy], references: [id])
 
   // İlişkiler
@@ -118,7 +92,7 @@ model StockMovement {
   newStock      Int
   reason        String
   reference     String?
-  createdBy     String
+  createdBy     Int
   createdByUser User     @relation(fields: [createdBy], references: [id])
   createdAt     DateTime @default(now())
 
@@ -145,7 +119,7 @@ model Order {
   orderDate   DateTime    @default(now())
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  createdBy   String
+  createdBy   Int
   createdByUser User      @relation(fields: [createdBy], references: [id])
 
   // İlişkiler
@@ -232,7 +206,7 @@ model Invoice {
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  createdBy     String
+  createdBy     Int
   createdByUser User          @relation(fields: [createdBy], references: [id])
 
   // İlişkiler
@@ -255,23 +229,23 @@ enum InvoiceStatus {
 }
 
 model Transaction {
-  id          String              @id @default(cuid())
-  type        TransactionType
-  category    TransactionCategory
-  amount      Float
-  description String
-  reference   String?
-  date        DateTime            @default(now())
-  invoiceId   String?
-  invoice     Invoice?            @relation(fields: [invoiceId], references: [id])
-  orderId     String?
-  order       Order?              @relation(fields: [orderId], references: [id])
-  paymentId   String?
-  payment     Payment?            @relation(fields: [paymentId], references: [id])
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  createdBy   String
-  createdByUser User              @relation(fields: [createdBy], references: [id])
+  id            String              @id @default(cuid())
+  type          TransactionType
+  category      TransactionCategory
+  amount        Float
+  description   String
+  reference     String?
+  date          DateTime            @default(now())
+  invoiceId     String?
+  orderId       String?
+  paymentId     String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  createdBy     Int
+  createdByUser User                @relation(fields: [createdBy], references: [id])
+  invoice       Invoice?            @relation(fields: [invoiceId], references: [id])
+  order         Order?              @relation(fields: [orderId], references: [id])
+  payment       Payment?            @relation(fields: [paymentId], references: [id])
 
   @@map("transactions")
 }
@@ -290,3 +264,82 @@ enum TransactionCategory {
   MARKETING
   OTHER
 }
+
+model User {
+  email                                              String             @unique
+  password                                           String
+  name                                               String
+  username                                           String             @unique
+  role                                               UserRole           @default(USER)
+  isActive                                           Boolean            @default(true)
+  createdAt                                          DateTime           @default(now())
+  updatedAt                                          DateTime           @updatedAt
+  code                                               String             @unique
+  createDate                                         DateTime           @default(now())
+  createdBy                                          Int?
+  deletedAt                                          DateTime?
+  deletedBy                                          Int?
+  department                                         String?
+  language                                           String?
+  updateDate                                         DateTime?
+  updatedBy                                          Int?
+  id                                                 Int                @id @default(autoincrement())
+  FinancialAccount_FinancialAccount_createdByTousers FinancialAccount[] @relation("FinancialAccount_createdByTousers")
+  FinancialAccount_FinancialAccount_deletedByTousers FinancialAccount[] @relation("FinancialAccount_deletedByTousers")
+  FinancialAccount_FinancialAccount_updatedByTousers FinancialAccount[] @relation("FinancialAccount_updatedByTousers")
+  customers                                          Customer[]
+  invoices                                           Invoice[]
+  orders                                             Order[]
+  products                                           Product[]
+  stockMovements                                     StockMovement[]
+  transactions                                       Transaction[]
+  createdByUser                                      User?              @relation("UserCreatedBy", fields: [createdBy], references: [id])
+  createdUsers                                       User[]             @relation("UserCreatedBy")
+  deletedByUser                                      User?              @relation("UserDeletedBy", fields: [deletedBy], references: [id])
+  deletedUsers                                       User[]             @relation("UserDeletedBy")
+  updatedByUser                                      User?              @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
+  updatedUsers                                       User[]             @relation("UserUpdatedBy")
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  USER
+}
+
+
+
+model FinancialAccount {
+  id                                      Int       @id @default(autoincrement())
+  description                             String
+  address                                 String
+  country                                 String
+  city                                    String
+  district                                String
+  taxOffice                               String
+  taxNo                                   String?
+  taxPayerType                            Boolean
+  idNo                                    String?
+  area                                    String
+  isActive                                Boolean   @default(true)
+  generalTel                              String?
+  generalEmail                            String?
+  generalName                             String
+  generalLastName                         String?
+  generalWebsite                          String?
+  createdAt                               DateTime  @default(now())
+  updatedAt                               DateTime  @updatedAt
+  code                                    String
+  createdBy                               Int
+  deletedAt                               DateTime?
+  deletedBy                               Int?
+  updatedBy                               Int?
+  users_FinancialAccount_createdByTousers User      @relation("FinancialAccount_createdByTousers", fields: [createdBy], references: [id])
+  users_FinancialAccount_deletedByTousers User?     @relation("FinancialAccount_deletedByTousers", fields: [deletedBy], references: [id])
+  users_FinancialAccount_updatedByTousers User?     @relation("FinancialAccount_updatedByTousers", fields: [updatedBy], references: [id])
+
+  @@map("FinancialAccount")
+}
+

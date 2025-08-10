@@ -1,154 +1,113 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
+// Register API Route Handler
+// POST /api/auth/register - Kullanıcı kaydı
 
-interface RegisterRequest{
-  email: string;
-  password:string;
-  firstName: string;
-  lastName: string;
-  username: string;
-  role?: 'ADMIN' | 'MANAGER' | 'USER';  
-}
+import { NextRequest, NextResponse } from 'next/server'
+import { AuthService } from '@/modules/auth/services/authService'
+import { validateRegisterRequest, checkRateLimit, addCorsHeaders, addSecurityHeaders } from '@/middleware/validation'
+import { RegisterRequest } from '@/types/auth'
 
-// POST Handler Fonksiyonu - HTTP POST isteklerini karşılar
-export async function POST(request:NextRequest) {
-  const body:RegisterRequest =await request.json();
-  const { email, password, firstName, lastName, username, role='USER' } = body;
-try{
-  if(!email || !password || !username){
-    return NextResponse.json(
-      { error: 'Email, kullanıcı adı ve şifre alanları zorunludur.' },
-      { status: 400 }
-    );
-  }
+// AuthService instance'ı oluştur
+const authService = new AuthService()
 
-  // Email format kontrolü
-  if(!email.includes('@')|| !email.includes('.')){
-    return NextResponse.json(
+// POST - Kullanıcı kaydı
+export async function POST(request: NextRequest) {
+  try {
+    // Rate limiting kontrolü - IP'yi headers'dan al
+    const forwarded = request.headers.get('x-forwarded-for')
+    const ip = forwarded ? forwarded.split(',')[0] : request.headers.get('x-real-ip') || 'unknown'
+    const rateLimit = checkRateLimit(ip, 3, 60 * 60 * 1000) // 1 saatte 3 kayıt
+    
+    if (!rateLimit.allowed) {
+      const response = NextResponse.json(
+        {
+          error: 'Çok fazla kayıt denemesi',
+          message: 'Lütfen daha sonra tekrar deneyin',
+          resetTime: rateLimit.resetTime
+        },
+        { status: 429 }
+      )
+      
+      return addCorsHeaders(addSecurityHeaders(response))
+    }
+
+    // Request body'yi al ve doğrula
+    const body = await request.json()
+    const validation = validateRegisterRequest(body)
+    
+    if (!validation.isValid) {
+      const response = NextResponse.json(
+        {
+          error: 'Geçersiz kayıt verisi',
+          details: validation.errors
+        },
+        { status: 400 }
+      )
+      
+      return addCorsHeaders(addSecurityHeaders(response))
+    }
+
+    // Register işlemini gerçekleştir
+    const registerData: RegisterRequest = {
+      email: body.email.trim().toLowerCase(),
+      password: body.password,
+      firstName: body.firstName.trim(),
+      lastName: body.lastName.trim(),
+      username: body.username.trim(),
+      role: body.role || 'USER' // Varsayılan rol USER
+    }
+
+    // AuthService'i kullan - hata durumunda exception fırlatır
+    const result = await authService.register(registerData)
+
+    // Başarılı kayıt - JWT'yi cookie olarak set et
+    const response = NextResponse.json(
       {
-        error: 'Geçersiz email formatı'
+        success: true,
+        message: result.message,
+        user: result.user,
+        remainingAttempts: rateLimit.remainingRequests
       },
-      { status: 400 }
-    );  
-  }
+      { status: 201 }
+    )
 
-  // password güvenlik kontrolü
-  if(password.length<8){
-    return NextResponse.json(
-      {
-        error: 'Password en az 8 karakter olmalıdır'
-      },
-      { status: 400 }
-    );
-  } 
+    // JWT'yi HttpOnly cookie olarak set et
+    response.cookies.set('auth-token', result.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60, // 24 saat
+      path: '/'
+    })
 
-  // Email tekil kontrolü
-  const existingEmail = await prisma.user.findUnique({
-    where : { email: email }
-  });
-    if (existingEmail) {
-      return NextResponse.json(
-        {
-          error: 'Bu email zaten kayıtlı.'
-        },
-        { status: 400 }
-      );
-    }
+    return addCorsHeaders(addSecurityHeaders(response))
 
-  // Username tekil kontrolü
-  const existingUser = await prisma.user.findFirst({
-    where : { username: username }
-  });
-    if (existingUser) {
-      return NextResponse.json(
-        {
-          error: 'Bu kullanıcı adı zaten kayıtlı.'
-        },
-        { status: 400 }
-      );
-    }
-
- 
-  // Password'u hash'le
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  //Kullanıcıyı veritabanına ekleme
-  const user = await prisma.user.create({
-    data: {
-      email: email,
-      password: hashedPassword,
-      name: firstName && lastName ? firstName + ' ' + lastName : username,
-      username: username,
-      role: role,
-      createdBy: null,
-      code: username, 
-    }
-  });
-
-  // 9. Başarılı sonucu geri döndür (password'u gösterme!)
-  return NextResponse.json({
-    message: 'Kullanıcı başarıyla oluşturuldu',
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      username: user.username,
-      code: user.code,
-      role: user.role
-    }
-  }, { status: 201 });
-
-} catch (error) {
-  // Hata detaylarını console'a yazdır
-  console.error('Register API Error:', error);
-  
-  // Prisma hata türlerini kontrol et
-  if (error instanceof Error) {
-    // Prisma unique constraint hatası
-    if (error.message.includes('Unique constraint')) {
-      return NextResponse.json(
-        {
-          error: 'Bu email veya username zaten kullanılıyor.',
-          details: error.message
-        },
-        { status: 400 }
-      );
+  } catch (error) {
+    console.error('Register API Error:', error)
+    
+    // Service layer'dan gelen hata mesajını kullan
+    const errorMessage = error instanceof Error ? error.message : 'Kayıt işlemi sırasında bir hata oluştu'
+    
+    // Duplicate key hataları için özel mesaj
+    let statusCode = 400
+    if (errorMessage.includes('Email') || errorMessage.includes('Username')) {
+      statusCode = 409 // Conflict
     }
     
-    // Prisma validation hatası
-    if (error.message.includes('Invalid') || error.message.includes('Required')) {
-      return NextResponse.json(
-        {
-          error: 'Geçersiz veri formatı.',
-          details: error.message
-        },
-        { status: 400 }
-      );
-    }
+    const response = NextResponse.json(
+      {
+        error: 'Kayıt başarısız',
+        message: errorMessage
+      },
+      { status: statusCode }
+    )
     
-    // Database bağlantı hatası
-    if (error.message.includes('connect') || error.message.includes('timeout')) {
-      return NextResponse.json(
-        {
-          error: 'Veritabanı bağlantı hatası.',
-          details: error.message
-        },
-        { status: 503 }
-      );
-    }
+    return addCorsHeaders(addSecurityHeaders(response))
   }
-  
-  // Genel hata durumu - development modunda detayları göster
-  return NextResponse.json(
-    {
-      error: 'Bir hata oluştu.',
-      details: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : String(error) : 'Internal server error',
-      stack: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.stack : undefined : undefined
-    },
-    { status: 500 }
-  );
-}
 }
 
-// password güvenlik kontrolü
+// OPTIONS - CORS pre-flight
+export async function OPTIONS() {
+  const response = new NextResponse(null, { status: 200 })
+  return addCorsHeaders(response)
+}
+

@@ -12,7 +12,7 @@ async function handleGet(request: AuthenticatedRequest) {
     }
 
     const customerService = ServiceProvider.getCustomerService()
-    const history = await customerService.getCustomerHistory(id)
+    const history = await customerService.history(id)
     return successResponse(history, 'Müşteri geçmişi getirildi')
   } catch (error) {
     if (error instanceof Error) {

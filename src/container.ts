@@ -28,9 +28,7 @@ container.bind<CustomerRepository>('ICustomerRepository').to(CustomerRepository)
 
 // Service bindings - Factory pattern kullan
 container.bind<AuthService>('IAuthService').toDynamicValue(() => {
-  const userRepository = new UserRepository(container.get<PrismaClient>('PrismaClient'))
-  const logger = container.get<Logger>('ILogger')
-  return new AuthService(userRepository, logger)
+  return new AuthService()
 }).inSingletonScope()
 
 container.bind<CustomerService>('ICustomerService').toDynamicValue(() => {

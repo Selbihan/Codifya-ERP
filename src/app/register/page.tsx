@@ -115,7 +115,7 @@ export default function RegisterPage() {
             <a href="#" className="text-indigo-600 hover:text-indigo-500">
               Gizlilik Politikası
             </a>
-            'nı kabul etmiş olursunuz.
+            &apos;nı kabul etmiş olursunuz.
           </p>
         </div>
       </div>

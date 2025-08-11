@@ -293,3 +293,6 @@ export interface AuditFields {
   updatedAt: Date
   deletedAt?: Date | null
 }
+
+// CRM tipleri ayrı dosyaya taşındı
+export * from './crm'

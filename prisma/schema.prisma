@@ -34,6 +34,10 @@ model Customer {
   // İlişkiler
   orders      Order[]
   invoices    Invoice[]
+  // TODO(CRM Split): Bu 'Customer' modeli ileride Account & Contact ayrışması sonrası kaldırılabilir
+  // veya yalnızca legacy / basit müşteri kayıtları için tutulabilir. Yeni CRM modelleri (Lead, Contact, Account)
+  // eklendi; geçiş stratejisi: 1) Yeni kayıtlarda Account/Contact kullan 2) Raporlar her iki kaynağı birleştirsin
+  // 3) Son aşamada Customer soft-deprecate.
 
   @@map("customers")
 }
@@ -62,8 +66,8 @@ model Product {
   name        String
   description String?
   sku         String   @unique
-  price       Float
-  cost        Float
+  price       Float      // TODO(Money->Decimal): Decimal(18,2)'ye migrasyon planı
+  cost        Float      // TODO(Money->Decimal): Decimal(18,2)'ye migrasyon planı
   stock       Int      @default(0)
   minStock    Int      @default(0)
   categoryId  String?
@@ -77,6 +81,7 @@ model Product {
   // İlişkiler
   orderItems  OrderItem[]
   stockMovements StockMovement[]
+  invoiceLines   InvoiceLine[] // Fatura satırları (opsiyonel ürün referansı)
 
   @@map("products")
 }
@@ -112,15 +117,19 @@ model Order {
   customerId  String
   customer    Customer    @relation(fields: [customerId], references: [id])
   status      OrderStatus @default(PENDING)
-  totalAmount Float
-  taxAmount   Float       @default(0)
-  discount    Float       @default(0)
+  totalAmount Float       // TODO(Money->Decimal)
+  taxAmount   Float       @default(0) // TODO(Money->Decimal)
+  discount    Float       @default(0) // TODO(Money->Decimal)
   notes       String?
   orderDate   DateTime    @default(now())
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   createdBy   Int
   createdByUser User      @relation(fields: [createdBy], references: [id])
+
+  // TODO(Currency): Aşağıdaki alanlar migration öncesi yorumda bırakıldı
+  // currency     String    @default("TRY")
+  // exchangeRate Decimal?  @db.Decimal(18,6) // Base TRY kabulü ile
 
   // İlişkiler
   items       OrderItem[]
@@ -138,6 +147,7 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+  // PARTIALLY_PAID // TODO(Status): Ödeme dağılımı eklendiğinde açılacak
 }
 
 model OrderItem {
@@ -147,8 +157,8 @@ model OrderItem {
   productId String
   product   Product @relation(fields: [productId], references: [id])
   quantity  Int
-  price     Float
-  total     Float
+  price     Float    // TODO(Money->Decimal)
+  total     Float    // TODO(Money->Decimal - derived)
 
   @@map("order_items")
 }
@@ -158,7 +168,7 @@ model Payment {
   id          String        @id @default(cuid())
   orderId     String
   order       Order         @relation(fields: [orderId], references: [id])
-  amount      Float
+  amount      Float         // TODO(Money->Decimal)
   method      PaymentMethod
   status      PaymentStatus @default(PENDING)
   reference   String?
@@ -168,6 +178,7 @@ model Payment {
 
   // İlişkiler
   transactions Transaction[]
+  allocations  PaymentAllocation[] // Ödemenin tahsis edildiği faturalar
 
   @@map("payments")
 }
@@ -196,10 +207,10 @@ model Invoice {
   customer      Customer?     @relation(fields: [customerId], references: [id])
   type          InvoiceType
   status        InvoiceStatus @default(DRAFT)
-  subtotal      Float
-  taxAmount     Float         @default(0)
-  discount      Float         @default(0)
-  totalAmount   Float
+  subtotal      Float         // TODO(Money->Decimal)
+  taxAmount     Float         @default(0) // TODO(Money->Decimal)
+  discount      Float         @default(0) // TODO(Money->Decimal)
+  totalAmount   Float         // TODO(Money->Decimal)
   dueDate       DateTime
   issueDate     DateTime      @default(now())
   paidDate      DateTime?
@@ -209,8 +220,14 @@ model Invoice {
   createdBy     Int
   createdByUser User          @relation(fields: [createdBy], references: [id])
 
+  // TODO(Currency): currency & exchangeRate ileride eklenecek
+  // currency     String    @default("TRY")
+  // exchangeRate Decimal?  @db.Decimal(18,6)
+
   // İlişkiler
   transactions  Transaction[]
+  invoiceLines  InvoiceLine[]
+  allocations   PaymentAllocation[] // Faturaya yapılan ödeme tahsisleri
 
   @@map("invoices")
 }
@@ -226,13 +243,36 @@ enum InvoiceStatus {
   SENT
   PAID
   CANCELLED
+  // PARTIALLY_PAID // TODO(Status): Ödeme tahsisleri sonrası
 }
+
+model InvoiceLine {
+  id           String     @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice    @relation(fields: [invoiceId], references: [id])
+  
+  productId    String?    
+  product      Product?   @relation(fields: [productId], references: [id])
+
+  description  String     @db.Text
+  quantity     Decimal    @db.Decimal(18, 2)
+  unitPrice    Decimal    @db.Decimal(18, 2)
+  discount     Decimal?   @db.Decimal(18, 2)
+  taxRate      Decimal?   @db.Decimal(5, 2)      // % olarak örn: 18.00
+  taxAmount    Decimal    @db.Decimal(18, 2)
+  lineTotal    Decimal    @db.Decimal(18, 2)      // (unitPrice * quantity - discount + taxAmount)
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+
 
 model Transaction {
   id            String              @id @default(cuid())
   type          TransactionType
   category      TransactionCategory
-  amount        Float
+  amount        Float        // TODO(Money->Decimal)
   description   String
   reference     String?
   date          DateTime            @default(now())
@@ -293,6 +333,10 @@ model User {
   products                                           Product[]
   stockMovements                                     StockMovement[]
   transactions                                       Transaction[]
+  leads                                              Lead[]
+  contacts                                           Contact[]
+  accounts                                           Account[]
+  activities                                         Activity[]
   createdByUser                                      User?              @relation("UserCreatedBy", fields: [createdBy], references: [id])
   createdUsers                                       User[]             @relation("UserCreatedBy")
   deletedByUser                                      User?              @relation("UserDeletedBy", fields: [deletedBy], references: [id])
@@ -342,4 +386,140 @@ model FinancialAccount {
 
   @@map("FinancialAccount")
 }
+
+model Lead {
+  id                  String       @id @default(cuid())
+  name                String
+  email               String?      @db.Text
+  phone               String?      @db.Text
+  source              LeadSource
+  status              LeadStatus   @default(NEW)
+  
+  // User.id Int olduğundan ownerUserId Int olmalı
+  ownerUserId         Int
+  ownerUser           User         @relation(fields: [ownerUserId], references: [id])
+
+  convertedContactId  String? @unique
+  convertedContact    Contact?     @relation("LeadToContact", fields: [convertedContactId], references: [id])
+
+  convertedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([status], map: "idx_lead_status")
+  @@index([ownerUserId], map: "idx_lead_owner")
+  
+  // Silindi: duplicate index. Lead modelinde zaten eklendi.
+}
+
+enum LeadSource {
+  WEB
+  EVENT
+  REFERRAL
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  DISQUALIFIED
+}
+
+model Contact {
+  id           String    @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String
+  phone        String?   @db.Text
+  accountId    String?   // Opsiyonel, ilişki olursa bağlanır
+  account      Account?  @relation(fields: [accountId], references: [id])
+  
+  // User.id Int → ownerUserId Int
+  ownerUserId  Int
+  ownerUser    User      @relation(fields: [ownerUserId], references: [id])
+  convertedFromLead Lead? @relation("LeadToContact")
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Account {
+  id           String    @id @default(cuid())
+  name         String                 // Şirket / müşteri adı (zorunlu)
+  vatNumber    String?                // Vergi numarası (opsiyonel)
+  industry     String?                // Sektör bilgisi (opsiyonel)
+  size         AccountSize?           // Şirket büyüklüğü enum
+  website      String?                // Web sitesi (opsiyonel)
+  
+  // User.id Int → ownerUserId Int
+  ownerUserId  Int                 // Sahip kullanıcı ID
+  ownerUser    User      @relation(fields: [ownerUserId], references: [id])
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  contacts     Contact[]               // Bu hesaba bağlı kişiler
+}
+
+enum AccountSize {
+  SMALL
+  MEDIUM
+  LARGE
+  ENTERPRISE
+}
+
+model Activity {
+  id           String      @id @default(cuid())
+  type         ActivityType
+  subject      String
+  description  String?     @db.Text
+  dueAt        DateTime?   
+  completedAt  DateTime?   
+
+  entityType   EntityType
+  entityId     String       // Polymorphic ilişkide diğer tabloların id'si (Lead, Contact, Account, Order, Opportunity)
+
+  // User.id Int → ownerUserId Int
+  ownerUserId  Int
+  ownerUser    User         @relation(fields: [ownerUserId], references: [id])
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([entityType, entityId]) // Timeline sorguları için
+  @@index([ownerUserId])
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TASK
+}
+
+enum EntityType {
+  LEAD
+  CONTACT
+  ACCOUNT
+  ORDER
+  OPPORTUNITY
+}
+
+model PaymentAllocation {
+  id          String    @id @default(cuid())
+  paymentId   String
+  payment     Payment   @relation(fields: [paymentId], references: [id])
+
+  invoiceId   String
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id])
+
+  amount      Decimal   @db.Decimal(18, 2)     // Bu ödeme tahsis edilen miktar
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ---- İLİŞKİ GERİ BAĞLANTILARI & TODO'lar ----
+// Payment ve Invoice modellerine tahsis ilişkilerinin eklenmesi
+// NOT: Financial tutarlar şu an Float; ileride Decimal'e migrasyon planlanmalı (bkz: InvoiceLine & PaymentAllocation Decimal kullanıyor)
 

@@ -1,150 +1,141 @@
-import { 
-  CreateCustomerRequest, 
-  UpdateCustomerRequest, 
-  CustomerFilters, 
-  CustomerListResponse,
-  CustomerStats,
-  CustomerHistory,
-  Customer
-} from '../types'
-import { validateEmail, validatePhone, validateTaxNumber } from '@/utils/validation'
+import { validateEmail, validatePhone, validateTaxNumber, ValidationError } from '@/utils/validation'
 import { CustomerRepository } from '@/repositories/implementations/customerRepository'
+import { ICustomerRepository } from '@/repositories/interfaces/ICustomerRepository'
 import { Logger } from '@/utils/logger'
 import { prisma } from '@/lib/prisma'
+import { Customer } from '@/types'
+
+// Basit error sınıfları
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'NotFoundError'
+  }
+}
+
+// INPUT / DTO TYPES
+export interface CreateCustomerInput {
+  name: string
+  email?: string
+  phone?: string
+  address?: string
+  company?: string
+  taxNumber?: string
+}
+
+export interface UpdateCustomerInput extends Partial<CreateCustomerInput> {
+  isActive?: boolean
+}
+
+export interface CustomerFilters {
+  search?: string
+  company?: string
+  isActive?: boolean
+  email?: string
+  createdBy?: string
+  page?: number
+  limit?: number
+}
+
+export interface PaginatedCustomers {
+  customers: Customer[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
 
 export interface ICustomerService {
-  createCustomer(data: CreateCustomerRequest, createdBy: string): Promise<any>
-  getCustomerById(id: string): Promise<any>
-  updateCustomer(id: string, data: UpdateCustomerRequest): Promise<any>
-  deleteCustomer(id: string): Promise<void>
-  getCustomers(filters: CustomerFilters): Promise<CustomerListResponse>
-  getCustomerStats(): Promise<CustomerStats>
-  getCustomerHistory(customerId: string): Promise<CustomerHistory>
+  create(data: CreateCustomerInput, userId: string): Promise<Customer>
+  get(id: string): Promise<Customer>
+  update(id: string, data: UpdateCustomerInput): Promise<Customer>
+  remove(id: string): Promise<void>
+  list(filters: CustomerFilters): Promise<PaginatedCustomers>
+  stats(): Promise<{ total: number; active: number; inactive: number; newThisMonth: number }>
+  history(id: string): Promise<any>
 }
 
 export class CustomerService implements ICustomerService {
   constructor(
-    private customerRepository: CustomerRepository,
+    private repo: ICustomerRepository,
     private logger: Logger
   ) {}
 
-  // Factory method
-  static create(): ICustomerService {
-    const customerRepository = new CustomerRepository(prisma)
-    const logger = new Logger()
-    return new CustomerService(customerRepository, logger)
+  static create(): CustomerService {
+    return new CustomerService(new CustomerRepository(prisma), new Logger())
   }
 
-  // Validation helper
-  private validateCustomerData(data: CreateCustomerRequest | UpdateCustomerRequest) {
-    if (data.email && !validateEmail(data.email)) {
-      throw new Error('Geçersiz email formatı')
-    }
-
-    if (data.phone && !validatePhone(data.phone)) {
-      throw new Error('Geçersiz telefon numarası formatı')
-    }
-
-    if (data.taxNumber && !validateTaxNumber(data.taxNumber)) {
-      throw new Error('Geçersiz vergi numarası formatı')
-    }
+  // INPUT NORMALIZATION
+  private normalize(input: CreateCustomerInput | UpdateCustomerInput) {
+    const cleaned: any = { ...input }
+    if (cleaned.name) cleaned.name = cleaned.name.trim()
+    if (cleaned.email) cleaned.email = cleaned.email.trim()
+    if (cleaned.phone) cleaned.phone = cleaned.phone.replace(/\s/g, '')
+    if (cleaned.taxNumber) cleaned.taxNumber = cleaned.taxNumber.trim()
+    if (cleaned.address) cleaned.address = cleaned.address.trim()
+    if (cleaned.company) cleaned.company = cleaned.company.trim()
+    return cleaned as typeof input
   }
 
-  // Email uniqueness validation
-  private async validateEmailUniqueness(email: string, excludeId?: string) {
-    const existingCustomer = await this.customerRepository.findByEmail(email)
-    if (existingCustomer && existingCustomer.id !== excludeId) {
-      throw new Error('Bu email adresi zaten kullanılıyor')
-    }
+  // VALIDATION
+  private validate(input: CreateCustomerInput | UpdateCustomerInput, { isUpdate = false } = {}) {
+    if (!isUpdate && !input.name) throw new ValidationError('İsim zorunlu')
+    if (input.email && !validateEmail(input.email)) throw new ValidationError('Geçersiz email')
+    if (input.phone && !validatePhone(input.phone)) throw new ValidationError('Geçersiz telefon')
+    if (input.taxNumber && !validateTaxNumber(input.taxNumber)) throw new ValidationError('Geçersiz vergi no')
   }
 
-  async createCustomer(data: CreateCustomerRequest, createdBy: string) {
-    // Validation
-    this.validateCustomerData(data)
+  private async ensureEmailUnique(email?: string, excludeId?: string) {
+    if (!email) return
+    const existing = await this.repo.findByEmail(email)
+    if (existing && existing.id !== excludeId) throw new ValidationError('Email zaten kullanımda')
+  }
 
-    // Email benzersizlik kontrolü
-    if (data.email) {
-      await this.validateEmailUniqueness(data.email)
-    }
-
-    const customer = await this.customerRepository.create({
-      ...data,
-      createdBy
+  async create(data: CreateCustomerInput, userId: string): Promise<Customer> {
+    const normalized = this.normalize(data)
+    this.validate(normalized)
+    await this.ensureEmailUnique(normalized.email)
+    
+    const created = await this.repo.create({
+      name: normalized.name!,
+      email: normalized.email,
+      phone: normalized.phone,
+      address: normalized.address,
+      company: normalized.company,
+      taxNumber: normalized.taxNumber,
+      createdBy: userId
     })
 
-    this.logger.info('Müşteri oluşturuldu', { customerId: customer.id, createdBy })
-    return customer
+    this.logger.info('Customer created', { id: created.id, userId })
+    return this.mapToDomain(created)
   }
 
-  async getCustomerById(id: string) {
-    const customer = await this.customerRepository.findById(id)
-
-    if (!customer) {
-      throw new Error('Müşteri bulunamadı')
-    }
-
-    return customer
+  async get(id: string): Promise<Customer> {
+    const found = await this.repo.findById(id)
+    if (!found) throw new NotFoundError('Müşteri bulunamadı')
+    return this.mapToDomain(found)
   }
 
-  async updateCustomer(id: string, data: UpdateCustomerRequest) {
-    // Validation
-    this.validateCustomerData(data)
-
-    // Email benzersizlik kontrolü (kendisi hariç)
-    if (data.email) {
-      await this.validateEmailUniqueness(data.email, id)
-    }
-
-    const customer = await this.customerRepository.update(id, data)
-    this.logger.info('Müşteri güncellendi', { customerId: id })
-    return customer
+  async update(id: string, data: UpdateCustomerInput): Promise<Customer> {
+    const normalized = this.normalize(data)
+    this.validate(normalized, { isUpdate: true })
+    if (normalized.email) await this.ensureEmailUnique(normalized.email, id)
+    
+    const updated = await this.repo.update(id, normalized as any)
+    this.logger.info('Customer updated', { id })
+    return this.mapToDomain(updated)
   }
 
-  async deleteCustomer(id: string) {
-    await this.customerRepository.delete(id)
-    this.logger.info('Müşteri silindi', { customerId: id })
+  async remove(id: string): Promise<void> {
+    await this.repo.delete(id)
+    this.logger.info('Customer deleted', { id })
   }
 
-  async getCustomers(filters: CustomerFilters): Promise<CustomerListResponse> {
-    const {
-      page = 1,
-      limit = 10
-    } = filters
-
-    const result = await this.customerRepository.findManyPaginated(filters, page, limit)
-
-    // Tip dönüşümü - CRM types'daki Customer tipine uygun hale getir
-    const customers: Customer[] = result.data.map(customer => ({
-      id: customer.id,
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      address: customer.address,
-      company: customer.company,
-      taxNumber: customer.taxNumber,
-      isActive: customer.isActive,
-      createdAt: customer.createdAt,
-      updatedAt: customer.updatedAt,
-      createdBy: customer.createdBy,
-      createdByUser: customer.createdByUser,
-      orders: customer.orders?.map(order => ({
-        id: order.id,
-        orderNumber: order.orderNumber,
-        status: order.status,
-        totalAmount: order.totalAmount,
-        orderDate: order.orderDate
-      })) || [],
-      invoices: customer.invoices?.map(invoice => ({
-        id: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
-        status: invoice.status,
-        amount: invoice.totalAmount, // CRM types'da amount, global'da totalAmount
-        dueDate: invoice.dueDate
-      })) || []
-    }))
-
+  async list(filters: CustomerFilters): Promise<PaginatedCustomers> {
+    const { page = 1, limit = 10, ...rest } = filters
+    const result = await this.repo.findManyPaginated(rest, page, limit)
     return {
-      customers,
+      customers: result.data.map(this.mapToDomain),
       total: result.total,
       page: result.page,
       limit: result.limit,
@@ -152,118 +143,37 @@ export class CustomerService implements ICustomerService {
     }
   }
 
-  async getCustomerStats(): Promise<CustomerStats> {
-    const basicStats = await this.customerRepository.getCustomerStats()
-    
-    // Eksik alanları hesapla
-    const newCustomersThisMonth = await this.getNewCustomersThisMonth()
-    const topCustomers = await this.getTopCustomers()
-    const customerGrowth = await this.getCustomerGrowth()
-    
+  async stats() {
+    const basic = await this.repo.getCustomerStats()
+    const monthStart = new Date()
+    monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
+    const newThisMonth = await prisma.customer.count({
+      where: { createdAt: { gte: monthStart } }
+    })
     return {
-      totalCustomers: basicStats.total,
-      activeCustomers: basicStats.active,
-      newCustomersThisMonth,
-      topCustomers,
-      customerGrowth
+      total: basic.total,
+      active: basic.active,
+      inactive: basic.inactive,
+      newThisMonth
     }
   }
 
-  async getCustomerHistory(customerId: string): Promise<CustomerHistory> {
-    const history = await this.customerRepository.getCustomerHistory(customerId)
-    return history
+  async history(id: string) {
+    return this.repo.getCustomerHistory(id)
   }
 
-  // Helper methods for CustomerStats
-  private async getNewCustomersThisMonth(): Promise<number> {
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
-
-    const count = await prisma.customer.count({
-      where: {
-        createdAt: {
-          gte: startOfMonth
-        }
-      }
-    })
-
-    return count
-  }
-
-  private async getTopCustomers(): Promise<Array<{ customer: Customer; totalOrders: number; totalSpent: number }>> {
-    const topCustomers = await prisma.customer.findMany({
-      take: 5,
-      include: {
-        orders: true,
-        invoices: true,
-        createdByUser: true
-      },
-      orderBy: {
-        orders: {
-          _count: 'desc'
-        }
-      }
-    })
-
-    return topCustomers.map(customer => ({
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        email: customer.email,
-        phone: customer.phone,
-        address: customer.address,
-        company: customer.company,
-        taxNumber: customer.taxNumber,
-        isActive: customer.isActive,
-        createdAt: customer.createdAt,
-        updatedAt: customer.updatedAt,
-        createdBy: customer.createdBy,
-        createdByUser: customer.createdByUser,
-        orders: customer.orders.map(order => ({
-          id: order.id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          totalAmount: order.totalAmount,
-          orderDate: order.orderDate
-        })),
-        invoices: customer.invoices.map(invoice => ({
-          id: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          status: invoice.status,
-          amount: invoice.totalAmount, // CRM types'da amount, global'da totalAmount
-          dueDate: invoice.dueDate
-        }))
-      },
-      totalOrders: customer.orders.length,
-      totalSpent: customer.orders.reduce((sum, order) => sum + order.totalAmount, 0)
-    }))
-  }
-
-  private async getCustomerGrowth(): Promise<Array<{ month: string; count: number }>> {
-    const months = []
-    const now = new Date()
-    
-    // Son 6 ayın verilerini al
-    for (let i = 5; i >= 0; i--) {
-      const month = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-      
-      const count = await prisma.customer.count({
-        where: {
-          createdAt: {
-            gte: month,
-            lt: nextMonth
-          }
-        }
-      })
-
-      months.push({
-        month: month.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }),
-        count
-      })
-    }
-
-    return months
-  }
-} 
+  // MAP PRISMA ENTITY -> DOMAIN Customer
+  private mapToDomain = (c: any): Customer => ({
+    id: c.id,
+    name: c.name,
+    email: c.email ?? null,
+    phone: c.phone ?? null,
+    address: c.address ?? null,
+    company: c.company ?? null,
+    taxNumber: c.taxNumber ?? null,
+    isActive: c.isActive,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    createdBy: parseInt(c.createdBy) || 0
+  })
+}

@@ -5,7 +5,7 @@ import {
   CreateCustomerDTO, 
   UpdateCustomerDTO, 
   CustomerFilters 
-} from '../interfaces/customerRepository'
+} from '../interfaces/ICustomerRepository'
 import { Customer, User } from '@/types'
 
 function mapUser(user: any): User {

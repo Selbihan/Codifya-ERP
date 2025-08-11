@@ -1,6 +1,8 @@
 'use client'
 
 import React from 'react'
+import { useAuthContext } from '@/context/AuthContext'
+import { useRouter } from 'next/navigation'
 import Navigation from './Navigation'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
@@ -10,6 +12,13 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  const { logout } = useAuthContext()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await logout()
+    router.push('/login')
+  }
   return (
     <ThemeProvider>
       <div className="flex min-h-screen bg-[var(--color-background)] text-[var(--color-text)]">
@@ -44,7 +53,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <button className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)] transition">
                   <span className="text-lg">⚙️</span>
                 </button>
-                <button className="px-4 h-9 inline-flex items-center text-sm rounded-xl bg-red-500/10 text-red-600 hover:bg-red-500/15 border border-red-500/20">
+                <button onClick={handleLogout} className="px-4 h-9 inline-flex items-center text-sm rounded-xl bg-red-500/10 text-red-600 hover:bg-red-500/15 border border-red-500/20">
                   Çıkış
                 </button>
               </div>

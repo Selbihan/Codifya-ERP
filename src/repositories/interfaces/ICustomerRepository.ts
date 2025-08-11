@@ -8,7 +8,7 @@ export interface CreateCustomerDTO {
   address?: string
   company?: string
   taxNumber?: string
-  createdBy: string
+  createdBy: number
 }
 
 export interface UpdateCustomerDTO {

@@ -96,6 +96,8 @@ export class CustomerService implements ICustomerService {
     this.validate(normalized)
     await this.ensureEmailUnique(normalized.email)
     
+    // createdBy Int alanı: runtime tip uyumsuzluğu hatasını önlemek için parse
+    const createdByInt = parseInt(userId as any)
     const created = await this.repo.create({
       name: normalized.name!,
       email: normalized.email,
@@ -103,7 +105,7 @@ export class CustomerService implements ICustomerService {
       address: normalized.address,
       company: normalized.company,
       taxNumber: normalized.taxNumber,
-      createdBy: userId
+      createdBy: Number.isFinite(createdByInt) ? createdByInt : 0
     })
 
     this.logger.info('Customer created', { id: created.id, userId })

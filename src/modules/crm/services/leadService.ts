@@ -14,9 +14,13 @@ export class LeadService {
   }
 
   private normalizeInput(input: CreateLeadInput): { name: string; email?: string; phone?: string; source: LeadSource } {
+    const allowed: LeadSource[] = ['WEB', 'EVENT', 'REFERRAL', 'OTHER']
+    const rawSource = (input.source || 'OTHER').toString().trim().toUpperCase()
+    const source = (allowed.includes(rawSource as LeadSource) ? rawSource : 'OTHER') as LeadSource
+
     const normalized: { name: string; email?: string; phone?: string; source: LeadSource } = {
       name: input.name.trim(),
-      source: (input.source || 'OTHER') as LeadSource
+      source
     }
     if (input.email) normalized.email = input.email.trim()
     if (input.phone) normalized.phone = input.phone.trim()

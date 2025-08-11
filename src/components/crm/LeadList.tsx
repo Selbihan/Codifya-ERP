@@ -1,0 +1,263 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
+import { Table } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+
+interface Lead {
+  id: string
+  name: string
+  email?: string | null
+  phone?: string | null
+  source: string
+  status: string
+  createdAt: string
+  ownerUserId: number
+}
+
+interface LeadListData {
+  leads: Lead[]
+  total: number
+}
+
+export function LeadList() {
+  const [data, setData] = useState<LeadListData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [showNewForm, setShowNewForm] = useState(false)
+  const [newLead, setNewLead] = useState({ name: '', email: '', phone: '', source: 'WEB' })
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    fetchLeads()
+  }, [search])
+
+  const fetchLeads = async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams()
+      
+      if (search) {
+        params.append('search', search)
+      }
+
+      const response = await fetch(`/api/crm/leads?${params}`)
+      if (!response.ok) throw new Error('Lead listesi yüklenemedi')
+      
+      const result = await response.json()
+      if (result.success) {
+        setData(result.data)
+      } else {
+        throw new Error(result.message)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bilinmeyen hata')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    fetchLeads()
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'NEW':
+        return <Badge variant="info">Yeni</Badge>
+      case 'QUALIFIED':
+        return <Badge variant="success">Nitelikli</Badge>
+      case 'DISQUALIFIED':
+        return <Badge variant="error">Elendi</Badge>
+      default:
+        return <Badge variant="default">{status}</Badge>
+    }
+  }
+
+  const getSourceBadge = (source: string) => {
+    switch (source) {
+      case 'WEB':
+        return <Badge variant="info">Web</Badge>
+      case 'EVENT':
+        return <Badge variant="warning">Etkinlik</Badge>
+      case 'REFERRAL':
+        return <Badge variant="success">Referans</Badge>
+      case 'OTHER':
+        return <Badge variant="default">Diğer</Badge>
+      default:
+        return <Badge variant="default">{source}</Badge>
+    }
+  }
+
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="text-red-600">Hata: {error}</div>
+        <Button onClick={fetchLeads} className="mt-4">Tekrar Dene</Button>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Başlık ve Arama */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold">Potansiyel Müşteriler (Leads)</h2>
+        <div className="flex gap-2">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Lead ara..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-64"
+            />
+            <Button type="submit">Ara</Button>
+          </form>
+          <Button type="button" onClick={() => setShowNewForm(s => !s)}>
+            {showNewForm ? 'Kapat' : '+ Yeni Lead'}
+          </Button>
+        </div>
+      </div>
+
+      {showNewForm && (
+        <Card className="p-4">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              setCreating(true)
+              try {
+                const res = await fetch('/api/crm/leads', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(newLead)
+                })
+                const json = await res.json()
+                if (!res.ok || !json.success) throw new Error(json.message || 'Kayıt hatası')
+                setNewLead({ name: '', email: '', phone: '', source: 'WEB' })
+                setShowNewForm(false)
+                fetchLeads()
+              } catch (err) {
+                alert(err instanceof Error ? err.message : 'Hata')
+              } finally {
+                setCreating(false)
+              }
+            }}
+            className="grid grid-cols-1 md:grid-cols-4 gap-4"
+          >
+            <div>
+              <label className="block text-xs font-medium mb-1">İsim *</label>
+              <Input required value={newLead.name} onChange={e => setNewLead(l => ({ ...l, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Email *</label>
+              <Input required type="email" value={newLead.email} onChange={e => setNewLead(l => ({ ...l, email: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Telefon</label>
+              <Input value={newLead.phone} onChange={e => setNewLead(l => ({ ...l, phone: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Kaynak</label>
+              <Select
+                value={newLead.source}
+                onChange={(val) => setNewLead(l => ({ ...l, source: val }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="WEB">WEB</SelectItem>
+                  <SelectItem value="EVENT">EVENT</SelectItem>
+                  <SelectItem value="REFERRAL">REFERRAL</SelectItem>
+                  <SelectItem value="OTHER">OTHER</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="md:col-span-4 flex gap-2 pt-2">
+              <Button type="submit" disabled={creating}>{creating ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+              <Button type="button" variant="ghost" onClick={() => setShowNewForm(false)}>İptal</Button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      {/* Lead Tablosu */}
+      <Card>
+        {loading ? (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Yükleniyor...</p>
+          </div>
+        ) : !data || data.leads.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            <p>Lead bulunamadı</p>
+            {search && (
+              <Button 
+                variant="ghost" 
+                onClick={() => setSearch('')}
+                className="mt-2"
+              >
+                Filtreyi Temizle
+              </Button>
+            )}
+          </div>
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th>İsim</th>
+                <th>Email</th>
+                <th>Telefon</th>
+                <th>Kaynak</th>
+                <th>Durum</th>
+                <th>Kayıt Tarihi</th>
+                <th>İşlemler</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.leads.map((lead) => (
+                <tr key={lead.id}>
+                  <td className="font-medium">{lead.name}</td>
+                  <td>{lead.email || '-'}</td>
+                  <td>{lead.phone || '-'}</td>
+                  <td>{getSourceBadge(lead.source)}</td>
+                  <td>{getStatusBadge(lead.status)}</td>
+                  <td>
+                    {new Date(lead.createdAt).toLocaleDateString('tr-TR')}
+                  </td>
+                  <td>
+                    <div className="flex gap-1 items-center">
+                      <Button size="sm" variant="ghost">Görüntüle</Button>
+                      <Button size="sm" variant="ghost">Dönüştür</Button>
+                      <a
+                        href={`/crm/activities?leadId=${lead.id}`}
+                        className="text-xs text-blue-600 hover:underline px-1"
+                        title="Lead aktiviteleri"
+                      >Aktiviteler</a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
+
+      {/* İstatistikler */}
+      {data && (
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>
+            Toplam {data.total} lead görüntüleniyor
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}

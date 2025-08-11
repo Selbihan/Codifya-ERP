@@ -1,12 +1,11 @@
-// Dashboard Sayfası
 import React from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import LiveDashboard from '@/components/dashboard/LiveDashboard'
+import { ActivitiesView } from '@/components/crm'
 
-export default function DashboardPage() {
+export default function ActivitiesPage() {
   return (
     <DashboardLayout>
-  <LiveDashboard />
+      <ActivitiesView />
     </DashboardLayout>
   )
 }

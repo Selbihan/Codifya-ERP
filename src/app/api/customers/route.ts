@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { CustomerService } from '@/modules/crm/services/customerService'
+import { CustomerService } from '../../../modules/crm/services/customerService'
 
 // GET - Müşteri listesi
 export async function GET(request: NextRequest) {

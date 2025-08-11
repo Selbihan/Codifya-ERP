@@ -4,7 +4,7 @@
 export type LeadSource = 'WEB' | 'EVENT' | 'REFERRAL' | 'OTHER'
 export type LeadStatus = 'NEW' | 'QUALIFIED' | 'DISQUALIFIED'
 export type AccountSize = 'SMALL' | 'MEDIUM' | 'LARGE' | 'ENTERPRISE'
-export type ActivityType = 'CALL' | 'EMAIL' | 'MEETING' | 'TASK'
+export type ActivityType = 'CALL' | 'EMAIL' | 'MEETING' | 'TASK' | 'NOTE'
 export type EntityType = 'LEAD' | 'CONTACT' | 'ACCOUNT' | 'ORDER' | 'OPPORTUNITY'
 
 export interface Lead {

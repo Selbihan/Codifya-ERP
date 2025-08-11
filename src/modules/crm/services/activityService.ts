@@ -18,7 +18,7 @@ export class ActivityService {
 
   private validate(input: CreateActivityInput) {
     if (!input.subject?.trim()) throw new Error('Konu (subject) zorunlu')
-    const validTypes: ActivityType[] = ['CALL', 'EMAIL', 'MEETING', 'TASK']
+  const validTypes: ActivityType[] = ['CALL', 'EMAIL', 'MEETING', 'TASK', 'NOTE']
     if (!validTypes.includes(input.type)) throw new Error('Geçersiz aktivite tipi')
   }
 

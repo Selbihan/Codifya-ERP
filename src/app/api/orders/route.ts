@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server'
 import { OrderService } from '@/modules/orders/services/orderService'
+import { OrdersRepository } from '@/repositories/implementations/orderRepository'
 import { successResponse, errorResponse } from '@/utils/api'
 import { requireManager, AuthenticatedRequest } from '@/lib/auth'
 import { CreateOrderRequest, OrderFilters, OrderStatus } from '@/modules/orders/types'
 
-const orderService = new OrderService()
+const orderService = new OrderService(new OrdersRepository())
 
 // GET - Sipariş listesi
 async function handleGet(request: AuthenticatedRequest) {
@@ -46,12 +47,13 @@ async function handlePost(request: AuthenticatedRequest) {
     }
 
     // JWT'den userId al
-    const createdBy = request.user?.userId
-    if (!createdBy) {
+  const createdByRaw = request.user?.userId
+  const createdBy = createdByRaw ? Number(createdByRaw) : undefined
+  if (createdBy === undefined || Number.isNaN(createdBy)) {
       return errorResponse('Kullanıcı doğrulanamadı', 401)
     }
     
-    const order = await orderService.createOrder(body, createdBy)
+  const order = await orderService.createOrderFromRequest(body, createdBy)
     return successResponse(order, 'Sipariş başarıyla oluşturuldu')
   } catch (error) {
     if (error instanceof Error) {

@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server'
 import { OrderService } from '@/modules/orders/services/orderService'
 import { successResponse, errorResponse } from '@/utils/api'
 import { requireManager, AuthenticatedRequest } from '@/lib/auth'
+import { OrdersRepository } from '@/repositories/implementations/orderRepository'
 
-const orderService = new OrderService()
+const orderService = new OrderService(new OrdersRepository())
 
 // GET - Sipariş dashboard özeti
 async function handleGet(request: AuthenticatedRequest) {

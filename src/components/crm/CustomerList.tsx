@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Table } from '@/components/ui/table'
+import { DataTable, DataTableColumn } from '@/components/ui/data-table'
 import { Badge } from '@/components/ui/badge'
 import { CustomerForm } from './CustomerForm'
 import { Pagination } from '@/components/ui/pagination'
@@ -132,54 +132,19 @@ export function CustomerList() {
           </div>
         ) : (
           <>
-            <Table>
-              <thead>
-                <tr>
-                  <th>İsim</th>
-                  <th>Email</th>
-                  <th>Telefon</th>
-                  <th>Şirket</th>
-                  <th>Durum</th>
-                  <th>Kayıt Tarihi</th>
-                  <th>İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.customers.map((customer) => (
-                  <tr key={customer.id}>
-                    <td className="font-medium">{customer.name}</td>
-                    <td>{customer.email || '-'}</td>
-                    <td>{customer.phone || '-'}</td>
-                    <td>{customer.company || '-'}</td>
-                    <td>
-                      <Badge variant={customer.isActive ? 'success' : 'error'}>
-                        {customer.isActive ? 'Aktif' : 'Pasif'}
-                      </Badge>
-                    </td>
-                    <td>
-                      {new Date(customer.createdAt).toLocaleDateString('tr-TR')}
-                    </td>
-                    <td>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost">Görüntüle</Button>
-                        <Button size="sm" variant="ghost">Düzenle</Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-
-            {/* Pagination */}
-            {data.totalPages > 1 && (
-              <div className="p-4 border-t">
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={data.totalPages}
-                  onPageChange={setCurrentPage}
-                />
-              </div>
-            )}
+            <DataTable
+              data={data.customers}
+              columns={customerColumns}
+              striped
+              compact
+              initialSort={{ key: 'createdAt', direction: 'desc' }}
+              pagination={{
+                page: currentPage,
+                pageSize: 10,
+                total: data.total,
+                onPageChange: (p) => setCurrentPage(p)
+              }}
+            />
           </>
         )}
       </Card>
@@ -198,3 +163,20 @@ export function CustomerList() {
     </div>
   )
 }
+
+const customerColumns: DataTableColumn<Customer>[] = [
+  { key: 'name', header: 'İsim', sortable: true },
+  { key: 'email', header: 'Email', accessor: c => c.email || '-' },
+  { key: 'phone', header: 'Telefon', accessor: c => c.phone || '-' },
+  { key: 'company', header: 'Şirket', accessor: c => c.company || '-' },
+  { key: 'isActive', header: 'Durum', accessor: c => (
+      <Badge variant={c.isActive ? 'success' : 'error'}>{c.isActive ? 'Aktif' : 'Pasif'}</Badge>
+    ) },
+  { key: 'createdAt', header: 'Kayıt Tarihi', sortable: true, accessor: c => new Date(c.createdAt).toLocaleDateString('tr-TR') },
+  { key: 'actions', header: 'İşlemler', accessor: c => (
+      <div className="flex gap-1">
+        <Button size="sm" variant="ghost">Görüntüle</Button>
+        <Button size="sm" variant="ghost">Düzenle</Button>
+      </div>
+    ) }
+]

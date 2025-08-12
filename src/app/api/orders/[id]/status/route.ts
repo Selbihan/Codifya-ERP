@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server'
 import { OrderService } from '@/modules/orders/services/orderService'
+import { OrdersRepository } from '@/repositories/implementations/orderRepository'
 import { successResponse, errorResponse } from '@/utils/api'
 import { requireManager, AuthenticatedRequest } from '@/lib/auth'
 import { OrderStatus } from '@/modules/orders/types'
 
-const orderService = new OrderService()
+const orderService = new OrderService(new OrdersRepository())
 
 // PATCH - Sipariş durumu güncelleme
 async function handlePatch(request: AuthenticatedRequest) {

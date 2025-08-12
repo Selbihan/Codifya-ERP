@@ -14,6 +14,7 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { logout } = useAuthContext()
   const router = useRouter()
+  const [collapsed, setCollapsed] = React.useState(false)
 
   const handleLogout = async () => {
     await logout()
@@ -23,12 +24,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <ThemeProvider>
       <div className="flex min-h-screen bg-[var(--color-background)] text-[var(--color-text)]">
         {/* Sol Navigation Panel */}
-        <div className="fixed left-0 top-0 h-full z-20 border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
-          <Navigation />
+        <div className="fixed left-0 top-0 h-full z-20 border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm transition-all duration-300">
+          <Navigation collapsed={collapsed} setCollapsed={setCollapsed} />
         </div>
 
         {/* Ana İçerik Alanı */}
-        <div className="flex-1 ml-64 flex flex-col min-h-screen">
+        <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${collapsed ? 'ml-20' : 'ml-64'}`}>
           {/* Header */}
           <header className="px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]/90 backdrop-blur supports-[backdrop-filter]:bg-[var(--color-surface)]/80 sticky top-0 z-10">
             <div className="flex items-center justify-between">

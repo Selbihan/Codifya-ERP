@@ -1,6 +1,5 @@
 import { User, Product, Payment } from '@/types'
 
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
 
 // Customer interface'ini burada tanımlayalım
 export interface Customer {
@@ -112,3 +111,13 @@ export interface OrderHistory {
   }>
   paymentHistory: Payment[]
 } 
+
+export enum OrderStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  PROCESSING = 'PROCESSING',
+  SHIPPED = 'SHIPPED',
+  DELIVERED = 'DELIVERED',
+  CANCELLED = 'CANCELLED'
+}
+

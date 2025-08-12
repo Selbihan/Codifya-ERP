@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
-import { Table } from '@/components/ui/table'
+import { DataTable, DataTableColumn } from '@/components/ui/data-table'
 import { Badge } from '@/components/ui/badge'
 
 interface Lead {
@@ -103,6 +103,26 @@ export function LeadList() {
       </Card>
     )
   }
+
+  const leadColumns: DataTableColumn<Lead>[] = [
+    { key: 'name', header: 'İsim', sortable: true },
+    { key: 'email', header: 'Email', accessor: l => l.email || '-' },
+    { key: 'phone', header: 'Telefon', accessor: l => l.phone || '-' },
+    { key: 'source', header: 'Kaynak', accessor: l => getSourceBadge(l.source) },
+    { key: 'status', header: 'Durum', accessor: l => getStatusBadge(l.status) },
+    { key: 'createdAt', header: 'Kayıt Tarihi', sortable: true, accessor: l => new Date(l.createdAt).toLocaleDateString('tr-TR') },
+    { key: 'actions', header: 'İşlemler', accessor: l => (
+      <div className="flex gap-1 items-center">
+        <Button size="sm" variant="ghost">Görüntüle</Button>
+        <Button size="sm" variant="ghost">Dönüştür</Button>
+        <a
+          href={`/crm/activities?leadId=${l.id}`}
+          className="text-xs text-blue-600 hover:underline px-1"
+          title="Lead aktiviteleri"
+        >Aktiviteler</a>
+      </div>
+    ) }
+  ]
 
   return (
     <div className="space-y-6">
@@ -209,44 +229,13 @@ export function LeadList() {
             )}
           </div>
         ) : (
-          <Table>
-            <thead>
-              <tr>
-                <th>İsim</th>
-                <th>Email</th>
-                <th>Telefon</th>
-                <th>Kaynak</th>
-                <th>Durum</th>
-                <th>Kayıt Tarihi</th>
-                <th>İşlemler</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.leads.map((lead) => (
-                <tr key={lead.id}>
-                  <td className="font-medium">{lead.name}</td>
-                  <td>{lead.email || '-'}</td>
-                  <td>{lead.phone || '-'}</td>
-                  <td>{getSourceBadge(lead.source)}</td>
-                  <td>{getStatusBadge(lead.status)}</td>
-                  <td>
-                    {new Date(lead.createdAt).toLocaleDateString('tr-TR')}
-                  </td>
-                  <td>
-                    <div className="flex gap-1 items-center">
-                      <Button size="sm" variant="ghost">Görüntüle</Button>
-                      <Button size="sm" variant="ghost">Dönüştür</Button>
-                      <a
-                        href={`/crm/activities?leadId=${lead.id}`}
-                        className="text-xs text-blue-600 hover:underline px-1"
-                        title="Lead aktiviteleri"
-                      >Aktiviteler</a>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <DataTable
+            data={data.leads}
+            columns={leadColumns}
+            striped
+            compact
+            initialSort={{ key: 'createdAt', direction: 'desc' }}
+          />
         )}
       </Card>
 
@@ -257,7 +246,7 @@ export function LeadList() {
             Toplam {data.total} lead görüntüleniyor
           </span>
         </div>
-      )}
+  )}
     </div>
   )
 }

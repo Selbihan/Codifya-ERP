@@ -60,10 +60,23 @@ const navigationItems: NavItem[] = [
   }
 ]
 
-export default function Navigation() {
+interface NavigationProps {
+  collapsed?: boolean
+  setCollapsed?: (v: boolean) => void
+}
+
+export default function Navigation({ collapsed: collapsedProp, setCollapsed: setCollapsedProp }: NavigationProps) {
   const pathname = usePathname()
   const [expandedItems, setExpandedItems] = useState<string[]>([])
-  const [collapsed, setCollapsed] = useState(false)
+  const [internalCollapsed, setInternalCollapsed] = useState(false)
+  const collapsed = collapsedProp !== undefined ? collapsedProp : internalCollapsed
+  const setCollapsed = (v: boolean | ((p: boolean) => boolean)) => {
+    if (setCollapsedProp) {
+      setCollapsedProp(typeof v === 'function' ? (v as any)(collapsed) : v)
+    } else {
+      setInternalCollapsed(typeof v === 'function' ? (v as any)(internalCollapsed) : v)
+    }
+  }
   // Tema düğmesi kaldırıldığı için useTheme kullanımını da kaldırdık
 
   const toggleExpanded = (itemName: string) => {

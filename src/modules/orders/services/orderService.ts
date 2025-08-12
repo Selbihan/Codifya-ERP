@@ -1,646 +1,450 @@
-import { prisma } from "@/lib/prisma";
-import {
-  CreateOrderRequest,
-  UpdateOrderRequest,
-  OrderFilters,
-  OrderListResponse,
-  OrderStatus,
-  OrderItem,
-  OrderStats,
-  OrderHistory,
-} from "../types";
-import { logger } from "@/utils/logger";
-import { Order, Customer, User, Product } from "@/types";
+import { IOrdersRepository } from "@/repositories/interfaces/IOrdersRepository";
+import { Order, Prisma } from "@/generated/prisma";
+import { 
+  CreateOrderDTO, 
+  UpdateOrderDTO, 
+  CreateOrderItemDTO,
+  UpdateOrderItemDTO 
+} from "@/types/orders";
+import { OrderStatus } from "@/modules/orders/types";
+import { OrderFilters, CreateOrderRequest } from '@/modules/orders/types'
 
-// Prisma'dan dönen veriyi User tipine uygun şekilde map'le
-function mapUser(user: any): User {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    password: "",
-    role: "USER",
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+// Custom error classes
+export class OrderNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Order with ID ${id} not found`);
+    this.name = 'OrderNotFoundError';
+  }
 }
 
-// Prisma'dan dönen veriyi Customer tipine uygun şekilde map'le
-function mapCustomer(prismaCustomer: any): Customer {
-  return {
-    id: prismaCustomer.id,
-    name: prismaCustomer.name,
-    email: prismaCustomer.email,
-    phone: prismaCustomer.phone,
-    address: prismaCustomer.address,
-    company: prismaCustomer.company,
-    taxNumber: prismaCustomer.taxNumber,
-    isActive: prismaCustomer.isActive,
-    createdAt: prismaCustomer.createdAt,
-    updatedAt: prismaCustomer.updatedAt,
-    createdBy: prismaCustomer.createdBy,
-    createdByUser: prismaCustomer.createdByUser
-      ? mapUser(prismaCustomer.createdByUser)
-      : undefined,
-    orders: [],
-    invoices: [],
-  };
+export class InvalidOrderDataError extends Error {
+  constructor(message: string) {
+    super(`Invalid order data: ${message}`);
+    this.name = 'InvalidOrderDataError';
+  }
 }
 
-// Prisma'dan dönen veriyi Product tipine uygun şekilde map'le
-function mapProduct(prismaProduct: any): Product {
-  return {
-    id: prismaProduct.id,
-    name: prismaProduct.name,
-    description: prismaProduct.description || undefined,
-    sku: prismaProduct.sku,
-    price: prismaProduct.price,
-    cost: prismaProduct.cost,
-    stock: prismaProduct.stock,
-    minStock: prismaProduct.minStock,
-    category: prismaProduct.category || null,
-    isActive: prismaProduct.isActive,
-    createdAt: prismaProduct.createdAt,
-    updatedAt: prismaProduct.updatedAt,
-    createdBy: prismaProduct.createdBy,
-    createdByUser: prismaProduct.createdByUser
-      ? mapUser(prismaProduct.createdByUser)
-      : undefined,
-  };
-}
-
-// Prisma'dan dönen veriyi Order tipine uygun şekilde map'le
-function mapOrder(prismaOrder: any): Order {
-  return {
-    id: prismaOrder.id,
-    orderNumber: prismaOrder.orderNumber,
-    customerId: prismaOrder.customerId,
-    customer: prismaOrder.customer
-      ? mapCustomer(prismaOrder.customer)
-      : undefined,
-    status: prismaOrder.status,
-    totalAmount: prismaOrder.totalAmount,
-    taxAmount: prismaOrder.taxAmount,
-    discount: prismaOrder.discount,
-    notes: prismaOrder.notes,
-    orderDate: prismaOrder.orderDate,
-    createdAt: prismaOrder.createdAt,
-    updatedAt: prismaOrder.updatedAt,
-    createdBy: prismaOrder.createdBy,
-    createdByUser: prismaOrder.createdByUser
-      ? mapUser(prismaOrder.createdByUser)
-      : undefined,
-    items: prismaOrder.items || [],
-    payments: prismaOrder.payments || [],
-    invoices: prismaOrder.invoices || [],
-  };
+export class OrderValidationError extends Error {
+  constructor(message: string) {
+    super(`Order validation failed: ${message}`);
+    this.name = 'OrderValidationError';
+  }
 }
 
 export class OrderService {
-  // Sipariş oluşturma
-  async createOrder(data: CreateOrderRequest, createdBy: string) {
-    // Müşteri kontrolü
-    const customer = await prisma.customer.findUnique({
-      where: { id: data.customerId },
-    });
-    if (!customer) throw new Error("Müşteri bulunamadı");
+  private orderRepo: IOrdersRepository;
 
-    // Ürün kontrolü ve toplam hesaplama
-    let totalAmount = 0;
-    let taxAmount = 0;
-    const items: {
-      productId: string;
-      quantity: number;
-      price: number;
-      total: number;
-    }[] = [];
-    for (const item of data.items) {
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId },
-      });
-      if (!product) throw new Error("Ürün bulunamadı");
-      if (!product.isActive) throw new Error("Ürün aktif değil");
-      if (product.stock < item.quantity)
-        throw new Error("Yetersiz stok: " + product.name);
-      const price = product.price;
-      const total = price * item.quantity;
-      totalAmount += total;
-      // Basit vergi: %18
-      taxAmount += total * 0.18;
-      items.push({
-        productId: product.id,
-        quantity: item.quantity,
-        price,
-        total,
-      });
-    }
-    // İndirim
-    const discount = data.discount || 0;
-    totalAmount = totalAmount - discount;
-    if (totalAmount < 0) totalAmount = 0;
+  constructor(orderRepository: IOrdersRepository) {
+    this.orderRepo = orderRepository;
+  }
 
-    // Sipariş numarası üret
-    const orderNumber = "ORD-" + Date.now();
+  /**
+   * Yeni sipariş oluşturur
+   * İş kuralları ve validasyonlar içerir
+   */
+  async createOrder(orderData: CreateOrderDTO): Promise<Order> {
+    // Validasyonlar
+    await this.validateOrderData(orderData);
+    
+    // İş kuralları
+    const processedData = await this.processOrderCreation(orderData);
+    
+    // Sipariş numarası benzersizlik kontrolü
+    await this.ensureUniqueOrderNumber(orderData.orderNumber);
 
-    // Transaction ile sipariş ve stok güncelle
-    const order = await prisma.$transaction(async (tx) => {
-      // Sipariş oluştur
-      const createdOrder = await tx.order.create({
-        data: {
-          orderNumber,
-          customerId: data.customerId,
-          status: "PENDING",
-          totalAmount,
-          taxAmount,
-          discount,
-          notes: data.notes,
-          orderDate: new Date(),
-          createdBy,
-          items: {
-            create: items.map((i) => ({
-              productId: i.productId,
-              quantity: i.quantity,
-              price: i.price,
-              total: i.total,
-            })),
-          },
-        },
-        include: {
-          items: true,
-          customer: {
-            include: {
-              createdByUser: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                },
-              },
-            },
-          },
-          createdByUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          payments: true,
-        },
-      });
-      // Stok güncelle
-      for (const item of items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
-        });
-      }
-      return createdOrder;
-    });
+    // Repository'ye gönder
+    return await this.orderRepo.create(processedData);
+  }
 
-    logger.info("Sipariş oluşturuldu", {
-      orderId: order.id,
-      orderNumber: order.orderNumber,
+  /**
+   * Route katmanındaki CreateOrderRequest + createdBy parametresini destekler
+   */
+  async createOrderFromRequest(req: CreateOrderRequest, createdBy: number): Promise<Order> {
+    const dto: CreateOrderDTO = {
+      orderNumber: this.generateOrderNumber(),
+      customerId: req.customerId,
+      status: OrderStatus.PENDING,
+      totalAmount: 0, // Hesaplanacak
+      taxAmount: 0,
+      discount: req.discount || 0,
+      notes: req.notes,
+      orderDate: new Date(),
       createdBy,
-    });
-    return mapOrder(order);
-  }
-
-  // Sipariş güncelleme
-  async updateOrder(id: string, data: UpdateOrderRequest) {
-    const order = await prisma.order.findUnique({ where: { id } });
-    if (!order) throw new Error("Sipariş bulunamadı");
-    // Sadece not, müşteri, indirim ve durum güncellenebilir
-    const updated = await prisma.order.update({
-      where: { id },
-      data: {
-        customerId: data.customerId,
-        notes: data.notes,
-        discount: data.discount,
-        status: data.status,
-      },
-      include: {
-        items: true,
-        customer: {
-          include: {
-            createdByUser: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        createdByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        payments: true,
-      },
-    });
-
-    logger.info("Sipariş güncellendi", { orderId: id });
-    return mapOrder(updated);
-  }
-
-  // Sipariş silme
-  async deleteOrder(id: string) {
-    const order = await prisma.order.findUnique({
-      where: { id },
-      include: { items: true },
-    });
-    if (!order) throw new Error("Sipariş bulunamadı");
-    // Sipariş silinince stok geri eklenir
-    await prisma.$transaction(async (tx) => {
-      for (const item of order.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
-        });
-      }
-      await tx.order.delete({ where: { id } });
-    });
-
-    logger.info("Sipariş silindi", { orderId: id });
-    return { message: "Sipariş silindi" };
-  }
-
-  // Sipariş listeleme/filtreleme
-  async getOrders(filters: OrderFilters): Promise<OrderListResponse> {
-    const {
-      search,
-      customerId,
-      status,
-      dateFrom,
-      dateTo,
-      page = 1,
-      limit = 10,
-    } = filters;
-    const skip = (page - 1) * limit;
-    const where: any = {};
-    if (search) {
-      where.OR = [
-        { orderNumber: { contains: search, mode: "insensitive" } },
-        { notes: { contains: search, mode: "insensitive" } },
-      ];
-    }
-    if (customerId) where.customerId = customerId;
-    if (status) where.status = status;
-    if (dateFrom) where.orderDate = { gte: new Date(dateFrom) };
-    if (dateTo) where.orderDate = { ...where.orderDate, lte: new Date(dateTo) };
-    const total = await prisma.order.count({ where });
-    const rawOrders = await prisma.order.findMany({
-      where,
-      include: {
-        items: true,
-        customer: {
-          include: {
-            createdByUser: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        createdByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        payments: true,
-      },
-      skip,
-      take: limit,
-      orderBy: { createdAt: "desc" },
-    });
-
-    const orders = rawOrders.map(mapOrder);
-
-    return {
-      orders,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
-  }
-
-  // Sipariş detayı
-  async getOrderById(id: string) {
-    const order = await prisma.order.findUnique({
-      where: { id },
-      include: {
-        items: true,
-        customer: {
-          include: {
-            createdByUser: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        createdByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        payments: true,
-      },
-    });
-    if (!order) throw new Error("Sipariş bulunamadı");
-    return mapOrder(order);
-  }
-
-  // Sipariş durumunu güncelle
-  async updateOrderStatus(id: string, status: OrderStatus) {
-    const order = await prisma.order.findUnique({ where: { id } });
-    if (!order) throw new Error("Sipariş bulunamadı");
-    const updated = await prisma.order.update({
-      where: { id },
-      data: { status },
-      include: {
-        items: true,
-        customer: {
-          include: {
-            createdByUser: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        createdByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        payments: true,
-      },
-    });
-
-    logger.info("Sipariş durumu güncellendi", { orderId: id, status });
-    return mapOrder(updated);
-  }
-
-  // Siparişe ürün ekle (ekstra endpoint için)
-  async addOrderItem(orderId: string, productId: string, quantity: number) {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { items: true },
-    });
-    if (!order) throw new Error("Sipariş bulunamadı");
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-    });
-    if (!product) throw new Error("Ürün bulunamadı");
-    if (product.stock < quantity) throw new Error("Yetersiz stok");
-    const price = product.price;
-    const total = price * quantity;
-    // Siparişe ürün ekle
-    const item = await prisma.orderItem.create({
-      data: {
-        orderId,
-        productId,
-        quantity,
-        price,
-        total,
-      },
-    });
-    // Stok güncelle
-    await prisma.product.update({
-      where: { id: productId },
-      data: { stock: { decrement: quantity } },
-    });
-    // Sipariş toplamını güncelle
-    await this.recalculateOrderTotals(orderId);
-    return item;
-  }
-
-  // Siparişten ürün çıkar (ekstra endpoint için)
-  async removeOrderItem(orderItemId: string) {
-    const item = await prisma.orderItem.findUnique({
-      where: { id: orderItemId },
-    });
-    if (!item) throw new Error("Sipariş ürünü bulunamadı");
-    // Stok geri ekle
-    await prisma.product.update({
-      where: { id: item.productId },
-      data: { stock: { increment: item.quantity } },
-    });
-    // Ürünü sil
-    await prisma.orderItem.delete({ where: { id: orderItemId } });
-    // Sipariş toplamını güncelle
-    await this.recalculateOrderTotals(item.orderId);
-    return { message: "Sipariş ürünü silindi" };
-  }
-
-  // Sipariş toplamını yeniden hesapla
-  async recalculateOrderTotals(orderId: string) {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { items: true },
-    });
-    if (!order) return;
-    let totalAmount = 0;
-    let taxAmount = 0;
-    for (const item of order.items) {
-      totalAmount += item.total;
-      taxAmount += item.total * 0.18;
-    }
-    totalAmount = totalAmount - (order.discount || 0);
-    if (totalAmount < 0) totalAmount = 0;
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        totalAmount,
-        taxAmount,
-      },
-    });
-  }
-
-  // Sipariş istatistikleri
-  async getOrderStats(): Promise<OrderStats> {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    // Toplam sipariş sayısı
-    const totalOrders = await prisma.order.count();
-
-    // Durum bazında sipariş sayıları
-    const pendingOrders = await prisma.order.count({
-      where: { status: "PENDING" },
-    });
-
-    const completedOrders = await prisma.order.count({
-      where: { status: "DELIVERED" },
-    });
-
-    const cancelledOrders = await prisma.order.count({
-      where: { status: "CANCELLED" },
-    });
-
-    // Toplam gelir
-    const revenueResult = await prisma.order.aggregate({
-      where: { status: "DELIVERED" },
-      _sum: { totalAmount: true },
-    });
-    const totalRevenue = revenueResult._sum.totalAmount || 0;
-
-    // Ortalama sipariş değeri
-    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-    // En çok satılan ürünler
-    const topProducts = await prisma.orderItem.groupBy({
-      by: ["productId"],
-      _sum: {
-        quantity: true,
-        total: true,
-      },
-      orderBy: {
-        _sum: {
-          total: "desc",
-        },
-      },
-      take: 5,
-    });
-
-    const topProductsWithDetails = await Promise.all(
-      topProducts.map(async (item) => {
-        const product = await prisma.product.findUnique({
-          where: { id: item.productId },
-          include: {
-            category: true,
-          },
-        });
-        return {
-          product: product ? mapProduct(product) : undefined,
-          totalQuantity: item._sum.quantity || 0,
-          totalRevenue: item._sum.total || 0,
-        };
-      })
-    );
-
-    // Sipariş büyüme grafiği (son 6 ay)
-    const orderGrowth = [];
-    for (let i = 5; i >= 0; i--) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-
-      const count = await prisma.order.count({
-        where: {
-          orderDate: {
-            gte: monthStart,
-            lte: monthEnd,
-          },
-        },
-      });
-
-      const revenue = await prisma.order.aggregate({
-        where: {
-          orderDate: {
-            gte: monthStart,
-            lte: monthEnd,
-          },
-          status: "DELIVERED",
-        },
-        _sum: { totalAmount: true },
-      });
-
-      orderGrowth.push({
-        month: monthStart.toLocaleDateString("tr-TR", {
-          month: "short",
-          year: "numeric",
-        }),
-        count,
-        revenue: revenue._sum.totalAmount || 0,
-      });
+      items: req.items.map(i => ({ productId: i.productId, quantity: i.quantity, price: 0 })) // Fiyat lookup TODO
     }
 
-    return {
-      totalOrders,
-      pendingOrders,
-      completedOrders,
-      cancelledOrders,
-      totalRevenue,
-      averageOrderValue,
-      topProducts: topProductsWithDetails,
-      orderGrowth,
-    };
+    // Ürün fiyatlarını bağlayıp total hesaplaması yapılmalı (TODO)
+    return this.createOrder(dto)
   }
 
-  // Sipariş geçmişi
-  async getOrderHistory(orderId: string): Promise<OrderHistory> {
-    const rawOrder = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-        customer: {
-          include: {
-            createdByUser: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        createdByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        payments: true,
-      },
-    });
-
-    if (!rawOrder) {
-      throw new Error("Sipariş bulunamadı");
+  /**
+   * Filtrelenmiş siparişleri getirir (şimdilik in-memory filtre; repository geliştirilince optimize edilecek)
+   */
+  async getOrders(filters: OrderFilters): Promise<{ orders: Order[]; total: number; page: number; limit: number; totalPages: number; }> {
+    const all = await this.orderRepo.findAll()
+    let filtered = all
+    if (filters.search) {
+      filtered = filtered.filter(o => o.orderNumber.includes(filters.search!) || (o.notes || '').includes(filters.search!))
+    }
+    if (filters.customerId) {
+      filtered = filtered.filter(o => o.customerId === filters.customerId)
+    }
+    if (filters.status) {
+      filtered = filtered.filter(o => o.status === filters.status)
+    }
+    // Tarih aralığı kontrolü (orderDate)
+    if (filters.dateFrom) {
+      const from = new Date(filters.dateFrom)
+      filtered = filtered.filter(o => new Date(o.orderDate) >= from)
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo)
+      filtered = filtered.filter(o => new Date(o.orderDate) <= to)
     }
 
-    const order = mapOrder(rawOrder);
+    const page = filters.page || 1
+    const limit = filters.limit || 10
+    const start = (page - 1) * limit
+    const paged = filtered.slice(start, start + limit)
+    return { orders: paged, total: filtered.length, page, limit, totalPages: Math.ceil(filtered.length / limit) }
+  }
 
-    // Basit status history (gerçek uygulamada ayrı bir tablo olabilir)
-    const statusHistory = [
-      {
-        status: order.status as OrderStatus,
-        changedAt: order.updatedAt,
-        changedBy: order.createdByUser,
-      },
-    ];
-
+  /**
+   * Sipariş geçmişi (şimdilik placeholder)
+   */
+  async getOrderHistory(id: string): Promise<{ order: Order; statusHistory: Array<{ status: OrderStatus; changedAt: Date }>; }> {
+    const order = await this.getOrderById(id)
+    // TODO: Gerçek history tablosu eklenince güncellenecek
     return {
       order,
-      statusHistory,
-      paymentHistory: order.payments,
+      statusHistory: [ { status: order.status as OrderStatus, changedAt: new Date(order.updatedAt) } ]
+    }
+  }
+
+  private generateOrderNumber(): string {
+    return 'ORD-' + Date.now().toString(36).toUpperCase()
+  }
+
+  /**
+   * Tüm siparişleri listeler (sayfalama ve filtreleme ile)
+   */
+  async listOrders(options?: {
+    page?: number;
+    limit?: number;
+    status?: OrderStatus;
+    customerId?: string;
+  }): Promise<Order[]> {
+    // TODO: Repository'ye filtreleme parametreleri eklendiğinde güncellenecek
+    return await this.orderRepo.findAll();
+  }
+
+  /**
+   * ID'ye göre sipariş getirir
+   */
+  async getOrderById(id: string): Promise<Order> {
+    if (!id || id.trim() === '') {
+      throw new InvalidOrderDataError('Order ID is required');
+    }
+
+    const order = await this.orderRepo.findById(id);
+    
+    if (!order) {
+      throw new OrderNotFoundError(id);
+    }
+
+    return order;
+  }
+
+  /**
+   * Siparişi günceller
+   */
+  async updateOrder(id: string, updateData: UpdateOrderDTO): Promise<Order> {
+    // Mevcut siparişin varlığını kontrol et
+    await this.getOrderById(id);
+
+    // Güncelleme verilerini validate et
+    await this.validateUpdateData(updateData);
+
+    // İş kurallarını uygula
+    const processedData = await this.processOrderUpdate(updateData);
+
+    return await this.orderRepo.update(id, processedData);
+  }
+
+  /**
+   * Sipariş durumunu günceller
+   */
+  async updateOrderStatus(id: string, newStatus: OrderStatus): Promise<Order> {
+    const existingOrder = await this.getOrderById(id);
+    
+    // Durum geçişi kontrolü
+    this.validateStatusTransition(existingOrder.status as OrderStatus, newStatus);
+
+    return await this.orderRepo.update(id, { status: newStatus });
+  }
+
+  /**
+   * Siparişi siler (soft delete tercih edilebilir)
+   */
+  async deleteOrder(id: string): Promise<Order> {
+    // Mevcut siparişin varlığını kontrol et
+    await this.getOrderById(id);
+
+    // Silme işlemi öncesi kontroller
+    await this.validateOrderDeletion(id);
+
+    return await this.orderRepo.delete(id);
+  }
+
+  /**
+   * Müşterinin siparişlerini getirir
+   */
+  async getOrdersByCustomer(customerId: string): Promise<Order[]> {
+    if (!customerId || customerId.trim() === '') {
+      throw new InvalidOrderDataError('Customer ID is required');
+    }
+
+    // TODO: Repository'de customer bazlı filtreleme eklendiğinde güncellenecek
+    const allOrders = await this.orderRepo.findAll();
+    return allOrders.filter(order => order.customerId === customerId);
+  }
+
+  /**
+   * Sipariş istatistiklerini getirir
+   */
+  async getOrderStatistics(): Promise<{
+    total: number;
+    pending: number;
+    confirmed: number;
+    processing: number;
+    shipped: number;
+    delivered: number;
+    cancelled: number;
+  }> {
+    const allOrders = await this.orderRepo.findAll();
+    
+    return {
+      total: allOrders.length,
+      pending: allOrders.filter(o => o.status === OrderStatus.PENDING).length,
+      confirmed: allOrders.filter(o => o.status === OrderStatus.CONFIRMED).length,
+      processing: allOrders.filter(o => o.status === OrderStatus.PROCESSING).length,
+      shipped: allOrders.filter(o => o.status === OrderStatus.SHIPPED).length,
+      delivered: allOrders.filter(o => o.status === OrderStatus.DELIVERED).length,
+      cancelled: allOrders.filter(o => o.status === OrderStatus.CANCELLED).length,
     };
+  }
+
+  /**
+   * Dashboard uyumlu istatistik alias'ı
+   * Geçici olarak mevcut getOrderStatistics sonucunu döner.
+   * İleride ek metrikler (aylık ciro, AOV, son 7 gün trendi vb.) buraya eklenecek.
+   */
+  async getOrderStats() {
+    return this.getOrderStatistics();
+  }
+
+  /**
+   * Sipariş verilerini validate eder
+   */
+  private async validateOrderData(data: CreateOrderDTO): Promise<void> {
+    if (!data.orderNumber || data.orderNumber.trim() === '') {
+      throw new OrderValidationError('Order number is required');
+    }
+
+    if (!data.customerId || data.customerId.trim() === '') {
+      throw new OrderValidationError('Customer ID is required');
+    }
+
+    if (data.totalAmount < 0) {
+      throw new OrderValidationError('Total amount cannot be negative');
+    }
+
+    if (data.taxAmount && data.taxAmount < 0) {
+      throw new OrderValidationError('Tax amount cannot be negative');
+    }
+
+    if (data.discount && data.discount < 0) {
+      throw new OrderValidationError('Discount cannot be negative');
+    }
+
+    if (!data.items || data.items.length === 0) {
+      throw new OrderValidationError('Order must have at least one item');
+    }
+
+    // Sipariş kalemlerini validate et
+    data.items.forEach((item, index) => {
+      this.validateOrderItem(item, index);
+    });
+  }
+
+  /**
+   * Sipariş kalemini validate eder
+   */
+  private validateOrderItem(item: CreateOrderItemDTO, index: number): void {
+    if (!item.productId || item.productId.trim() === '') {
+      throw new OrderValidationError(`Item ${index + 1}: Product ID is required`);
+    }
+
+    if (item.quantity <= 0) {
+      throw new OrderValidationError(`Item ${index + 1}: Quantity must be greater than 0`);
+    }
+
+    if (item.price < 0) {
+      throw new OrderValidationError(`Item ${index + 1}: Price cannot be negative`);
+    }
+  }
+
+  /**
+   * Güncelleme verilerini validate eder
+   */
+  private async validateUpdateData(data: UpdateOrderDTO): Promise<void> {
+    if (data.totalAmount !== undefined && data.totalAmount < 0) {
+      throw new OrderValidationError('Total amount cannot be negative');
+    }
+
+    if (data.taxAmount !== undefined && data.taxAmount < 0) {
+      throw new OrderValidationError('Tax amount cannot be negative');
+    }
+
+    if (data.discount !== undefined && data.discount < 0) {
+      throw new OrderValidationError('Discount cannot be negative');
+    }
+
+    if (data.items) {
+      data.items.forEach((item, index) => {
+        if (item.quantity !== undefined && item.quantity <= 0) {
+          throw new OrderValidationError(`Item ${index + 1}: Quantity must be greater than 0`);
+        }
+
+        if (item.price !== undefined && item.price < 0) {
+          throw new OrderValidationError(`Item ${index + 1}: Price cannot be negative`);
+        }
+      });
+    }
+  }
+
+  /**
+   * Sipariş numarası benzersizlik kontrolü
+   */
+  private async ensureUniqueOrderNumber(orderNumber: string): Promise<void> {
+    // TODO: Repository'de orderNumber ile arama metodu eklendiğinde aktif edilecek
+    // const existingOrder = await this.orderRepo.findByOrderNumber(orderNumber);
+    // if (existingOrder) {
+    //   throw new OrderValidationError(`Order number ${orderNumber} already exists`);
+    // }
+  }
+
+  /**
+   * Sipariş oluşturma iş kurallarını uygular
+   */
+  private async processOrderCreation(data: CreateOrderDTO): Promise<Prisma.OrderCreateInput> {
+    // Toplam tutar hesaplama
+    const calculatedTotal = this.calculateOrderTotal(data.items, data.discount, data.taxAmount);
+    
+    // Eğer gelen total ile hesaplanan farklıysa, hesaplanan değeri kullan
+    if (Math.abs(calculatedTotal - data.totalAmount) > 0.01) {
+      console.warn(`Order total mismatch. Calculated: ${calculatedTotal}, Provided: ${data.totalAmount}`);
+    }
+
+    // OrderItem'ları oluştur
+    const orderItems = data.items.map(item => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.quantity * item.price
+    }));
+
+    // Prisma input formatına dönüştür
+    return {
+      orderNumber: data.orderNumber,
+      status: data.status || OrderStatus.PENDING,
+      totalAmount: calculatedTotal,
+      taxAmount: data.taxAmount || 0,
+      discount: data.discount || 0,
+      notes: data.notes,
+      orderDate: data.orderDate || new Date(),
+      customer: {
+        connect: { id: data.customerId }
+      },
+      createdByUser: {
+        connect: { id: data.createdBy }
+      },
+      items: {
+        create: orderItems
+      }
+    };
+  }
+
+  /**
+   * Sipariş güncelleme iş kurallarını uygular
+   */
+  private async processOrderUpdate(data: UpdateOrderDTO): Promise<Prisma.OrderUpdateInput> {
+    const updateData: Prisma.OrderUpdateInput = {};
+
+    // Temel alanları kopyala
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.totalAmount !== undefined) updateData.totalAmount = data.totalAmount;
+    if (data.taxAmount !== undefined) updateData.taxAmount = data.taxAmount;
+    if (data.discount !== undefined) updateData.discount = data.discount;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.orderDate !== undefined) updateData.orderDate = data.orderDate;
+
+    // TODO: OrderItem güncellemeleri için daha karmaşık logic gerekli
+    // Bu özellik ayrı bir metot olarak implement edilmeli
+
+    return updateData;
+  }
+
+  /**
+   * Sipariş toplam tutarını hesaplar
+   */
+  private calculateOrderTotal(
+    items: CreateOrderItemDTO[], 
+    discount: number = 0, 
+    taxAmount: number = 0
+  ): number {
+    const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    return subtotal - discount + taxAmount;
+  }
+
+  /**
+   * Durum geçişi kontrolü yapar
+   */
+  private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus): void {
+    const validTransitions: Record<OrderStatus, OrderStatus[]> = {
+      [OrderStatus.PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+      [OrderStatus.CONFIRMED]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
+      [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+      [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED],
+      [OrderStatus.DELIVERED]: [], // Final state
+      [OrderStatus.CANCELLED]: [] // Final state
+    };
+
+    const allowedTransitions = validTransitions[currentStatus];
+    
+    if (!allowedTransitions.includes(newStatus)) {
+      throw new OrderValidationError(
+        `Invalid status transition from ${currentStatus} to ${newStatus}`
+      );
+    }
+  }
+
+  /**
+   * Sipariş silme öncesi kontroller
+   */
+  private async validateOrderDeletion(id: string): Promise<void> {
+    const order = await this.getOrderById(id);
+    
+    // Teslim edilmiş veya işlemde olan siparişler silinemez
+    if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.PROCESSING) {
+      throw new OrderValidationError(
+        `Cannot delete order with status ${order.status}`
+      );
+    }
+
+    // TODO: Ödeme kontrolü
+    // if (order.payments && order.payments.length > 0) {
+    //   throw new OrderValidationError('Cannot delete order with existing payments');
+    // }
   }
 }

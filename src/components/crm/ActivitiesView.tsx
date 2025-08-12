@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Table } from '@/components/ui/table'
+import { DataTable, DataTableColumn } from '@/components/ui/data-table'
 
 interface Activity {
   id: number
@@ -218,30 +218,23 @@ export default function ActivitiesView() {
         ) : !data || data.activities.length === 0 ? (
           <div className="p-8 text-center text-gray-500">Aktivite yok</div>
         ) : (
-          <Table>
-            <thead>
-              <tr>
-                <th>Tür</th>
-                <th>Konu</th>
-                <th>Açıklama</th>
-                <th>Hedef</th>
-                <th>Oluşturma</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.activities.map(a => (
-                <tr key={a.id}>
-                  <td className="font-medium text-xs">{a.type}</td>
-                  <td className="text-sm">{a.subject}</td>
-                  <td className="text-xs text-gray-600 max-w-xs truncate">{a.description || '-'}</td>
-                  <td className="text-xs">{a.targetEntityType}#{a.targetEntityId}</td>
-                  <td className="text-xs">{new Date(a.createdAt).toLocaleString('tr-TR')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <DataTable
+            data={data.activities}
+            columns={activityColumns}
+            compact
+            striped
+            initialSort={{ key: 'createdAt', direction: 'desc' }}
+          />
         )}
       </Card>
     </div>
   )
 }
+
+const activityColumns: DataTableColumn<Activity>[] = [
+  { key: 'type', header: 'Tür', accessor: a => <span className="font-medium text-[11px]">{a.type}</span>, sortable: true },
+  { key: 'subject', header: 'Konu', accessor: a => <span className="text-xs">{a.subject}</span>, sortable: true },
+  { key: 'description', header: 'Açıklama', accessor: a => <span className="text-[11px] text-gray-600 max-w-[200px] truncate">{a.description || '-'}</span> },
+  { key: 'target', header: 'Hedef', accessor: a => <span className="text-[10px]">{a.targetEntityType}#{a.targetEntityId}</span> },
+  { key: 'createdAt', header: 'Oluşturma', accessor: a => <span className="text-[10px]">{new Date(a.createdAt).toLocaleString('tr-TR')}</span>, sortable: true },
+]

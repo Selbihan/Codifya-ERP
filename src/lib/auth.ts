@@ -8,17 +8,27 @@ export interface AuthenticatedRequest extends NextRequest {
 
 export const authenticateRequest = async (request: NextRequest): Promise<AuthenticatedRequest> => {
   const authHeader = request.headers.get('authorization')
-  const token = extractTokenFromHeader(authHeader || undefined)
-  
+  // Önce Authorization header'dan dene, yoksa cookie'ye fallback
+  let token = extractTokenFromHeader(authHeader || undefined)
+  if (!token) {
+    token = request.cookies.get('token')?.value || request.cookies.get('auth-token')?.value || null
+  }
+
   if (!token) {
     throw new Error('No token provided')
   }
-  
-  const payload = verifyToken(token)
-  if (!payload) {
+
+  const payloadRaw = verifyToken(token)
+  if (!payloadRaw) {
     throw new Error('Invalid token')
   }
-  
+
+  // login/register farkından dolayı id alanını userId'a map et
+  const payload: JWTPayload = {
+    ...payloadRaw,
+    userId: (payloadRaw as any).userId || (payloadRaw as any).id,
+  }
+
   const authenticatedRequest = request as AuthenticatedRequest
   authenticatedRequest.user = payload
   return authenticatedRequest

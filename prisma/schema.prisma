@@ -79,7 +79,7 @@ model Product {
   createdByUser User   @relation(fields: [createdBy], references: [id])
 
   // İlişkiler
-  orderItems  OrderItem[
+  orderItems  OrderItem[]
   stockMovements StockMovement[]
   invoiceLines   InvoiceLine[] // Fatura satırları (opsiyonel ürün referansı)
 
@@ -147,6 +147,7 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+  RETURNED
   // PARTIALLY_PAID // TODO(Status): Ödeme dağılımı eklendiğinde açılacak
 }
 

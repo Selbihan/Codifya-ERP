@@ -60,6 +60,14 @@ export class OrderService {
    * Route katmanındaki CreateOrderRequest + createdBy parametresini destekler
    */
   async createOrderFromRequest(req: CreateOrderRequest, createdBy: number): Promise<Order> {
+    // Ürün fiyatlarını veritabanından çek
+    const productIds = req.items.map(i => i.productId);
+    // Not: Burada doğrudan prisma kullanılabilir veya productService çağrılabilir
+    const { prisma } = await import('@/lib/prisma');
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, price: true }
+    });
     const dto: CreateOrderDTO = {
       orderNumber: this.generateOrderNumber(),
       customerId: req.customerId,
@@ -70,11 +78,16 @@ export class OrderService {
       notes: req.notes,
       orderDate: new Date(),
       createdBy,
-      items: req.items.map(i => ({ productId: i.productId, quantity: i.quantity, price: 0 })) // Fiyat lookup TODO
-    }
-
-    // Ürün fiyatlarını bağlayıp total hesaplaması yapılmalı (TODO)
-    return this.createOrder(dto)
+      items: req.items.map(i => {
+        const product = products.find(p => p.id === i.productId);
+        return {
+          productId: i.productId,
+          quantity: i.quantity,
+          price: product ? product.price : 0
+        };
+      })
+    };
+    return this.createOrder(dto);
   }
 
   /**
@@ -112,13 +125,33 @@ export class OrderService {
   /**
    * Sipariş geçmişi (şimdilik placeholder)
    */
-  async getOrderHistory(id: string): Promise<{ order: Order; statusHistory: Array<{ status: OrderStatus; changedAt: Date }>; }> {
-    const order = await this.getOrderById(id)
-    // TODO: Gerçek history tablosu eklenince güncellenecek
-    return {
-      order,
-      statusHistory: [ { status: order.status as OrderStatus, changedAt: new Date(order.updatedAt) } ]
+  async getOrderHistory(id: string): Promise<{ order: Order; statusHistory: Array<{ status: OrderStatus; changedAt: Date; description: string }>; }> {
+    const order = await this.getOrderById(id);
+    // Gerçek bir history tablosu yoksa, örnek bir geçmiş üretelim:
+    const history: Array<{ status: OrderStatus; changedAt: Date; description: string }> = [];
+    // Sipariş oluşturulma
+    history.push({ status: OrderStatus.PENDING, changedAt: new Date(order.createdAt), description: 'Sipariş oluşturuldu' });
+    // Onaylandıysa
+    if (order.status === OrderStatus.CONFIRMED || order.status === OrderStatus.PROCESSING || order.status === OrderStatus.SHIPPED || order.status === OrderStatus.DELIVERED) {
+      history.push({ status: OrderStatus.CONFIRMED, changedAt: new Date(order.updatedAt), description: 'Sipariş onaylandı' });
     }
+    // İşleniyorsa
+    if (order.status === OrderStatus.PROCESSING || order.status === OrderStatus.SHIPPED || order.status === OrderStatus.DELIVERED) {
+      history.push({ status: OrderStatus.PROCESSING, changedAt: new Date(order.updatedAt), description: 'Sipariş işleniyor' });
+    }
+    // Kargoya verildiyse
+    if (order.status === OrderStatus.SHIPPED || order.status === OrderStatus.DELIVERED) {
+      history.push({ status: OrderStatus.SHIPPED, changedAt: new Date(order.updatedAt), description: 'Sipariş kargoya verildi' });
+    }
+    // Teslim edildiyse
+    if (order.status === OrderStatus.DELIVERED) {
+      history.push({ status: OrderStatus.DELIVERED, changedAt: new Date(order.updatedAt), description: 'Sipariş teslim edildi' });
+    }
+    // İptal edildiyse
+    if (order.status === OrderStatus.CANCELLED) {
+      history.push({ status: OrderStatus.CANCELLED, changedAt: new Date(order.updatedAt), description: 'Sipariş iptal edildi' });
+    }
+    return { order, statusHistory: history };
   }
 
   private generateOrderNumber(): string {
@@ -133,9 +166,9 @@ export class OrderService {
     limit?: number;
     status?: OrderStatus;
     customerId?: string;
-  }): Promise<Order[]> {
-    // TODO: Repository'ye filtreleme parametreleri eklendiğinde güncellenecek
-    return await this.orderRepo.findAll();
+  }): Promise<{ orders: Order[]; total: number; page: number; limit: number; totalPages: number }> {
+    // getOrders fonksiyonunu kullanarak filtreli ve sayfalı veri döndür
+    return await this.getOrders(options || {});
   }
 
   /**
@@ -176,23 +209,26 @@ export class OrderService {
    */
   async updateOrderStatus(id: string, newStatus: OrderStatus): Promise<Order> {
     const existingOrder = await this.getOrderById(id);
-    
+    // Eğer sipariş teslim edildiyse, iptal edilemez, sadece iade başlatılabilir
+    if (existingOrder.status === OrderStatus.DELIVERED && newStatus === OrderStatus.CANCELLED) {
+      throw new Error('Teslim edilen sipariş iptal edilemez. Lütfen iade başlatın.');
+    }
     // Durum geçişi kontrolü
     this.validateStatusTransition(existingOrder.status as OrderStatus, newStatus);
-
-    return await this.orderRepo.update(id, { status: newStatus });
+  // Prisma update için status alanı string olmalı
+  return await this.orderRepo.update(id, { status: newStatus as any });
   }
 
   /**
    * Siparişi siler (soft delete tercih edilebilir)
    */
   async deleteOrder(id: string): Promise<Order> {
-    // Mevcut siparişin varlığını kontrol et
-    await this.getOrderById(id);
-
-    // Silme işlemi öncesi kontroller
+    const order = await this.getOrderById(id);
+    // Sadece iptal edilen siparişler silinebilir
+    if (order.status !== OrderStatus.CANCELLED) {
+      throw new Error('Sadece iptal edilen siparişler silinebilir.');
+    }
     await this.validateOrderDeletion(id);
-
     return await this.orderRepo.delete(id);
   }
 
@@ -357,7 +393,7 @@ export class OrderService {
     // Prisma input formatına dönüştür
     return {
       orderNumber: data.orderNumber,
-      status: data.status || OrderStatus.PENDING,
+      status: (data.status ?? OrderStatus.PENDING) as any,
       totalAmount: calculatedTotal,
       taxAmount: data.taxAmount || 0,
       discount: data.discount || 0,
@@ -381,8 +417,10 @@ export class OrderService {
   private async processOrderUpdate(data: UpdateOrderDTO): Promise<Prisma.OrderUpdateInput> {
     const updateData: Prisma.OrderUpdateInput = {};
 
-    // Temel alanları kopyala
-    if (data.status !== undefined) updateData.status = data.status;
+    // Status validasyonu: boş, undefined veya yanlış değer gelirse atama yapma
+    if (typeof data.status === 'string' && data.status.trim() !== '') {
+      updateData.status = { set: data.status.trim() as OrderStatus };
+    }
     if (data.totalAmount !== undefined) updateData.totalAmount = data.totalAmount;
     if (data.taxAmount !== undefined) updateData.taxAmount = data.taxAmount;
     if (data.discount !== undefined) updateData.discount = data.discount;
@@ -411,17 +449,24 @@ export class OrderService {
    * Durum geçişi kontrolü yapar
    */
   private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus): void {
+    // DELIVERED hariç her statüden CANCELLED'a geçişe izin ver
+    if (newStatus === OrderStatus.CANCELLED && currentStatus !== OrderStatus.DELIVERED) {
+      return;
+    }
+    // DELIVERED'dan RETURNED'a (iade) geçişe izin ver
+    if (currentStatus === OrderStatus.DELIVERED && newStatus === OrderStatus.RETURNED) {
+      return;
+    }
     const validTransitions: Record<OrderStatus, OrderStatus[]> = {
-      [OrderStatus.PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
-      [OrderStatus.CONFIRMED]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
-      [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+      [OrderStatus.PENDING]: [OrderStatus.CONFIRMED],
+      [OrderStatus.CONFIRMED]: [OrderStatus.PROCESSING],
+      [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED],
       [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED],
       [OrderStatus.DELIVERED]: [], // Final state
-      [OrderStatus.CANCELLED]: [] // Final state
+      [OrderStatus.CANCELLED]: [], // Final state
+      [OrderStatus.RETURNED]: [] // Final state
     };
-
     const allowedTransitions = validTransitions[currentStatus];
-    
     if (!allowedTransitions.includes(newStatus)) {
       throw new OrderValidationError(
         `Invalid status transition from ${currentStatus} to ${newStatus}`

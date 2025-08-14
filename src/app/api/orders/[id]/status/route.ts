@@ -18,7 +18,7 @@ async function handlePatch(request: AuthenticatedRequest) {
     const body = await request.json()
     const { status } = body
     
-    if (!status || !['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'].includes(status)) {
+    if (!status || !['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'].includes(status)) {
       return errorResponse('Geçerli bir durum gerekli')
     }
 

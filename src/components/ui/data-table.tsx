@@ -106,8 +106,7 @@ export function DataTable<T extends { id?: string | number }>({
                   style={{ width: col.width }}
                   onClick={() => handleSort(col)}
                   className={cx(
-                    'px-4 py-3 text-left font-medium text-gray-600 select-none border-b border-gray-200',
-                    col.align === 'center' && 'text-center',
+                    'px-4 py-3 text-center font-medium text-gray-600 select-none border-b border-gray-200',
                     col.align === 'right' && 'text-right',
                     col.sortable && 'cursor-pointer hover:text-gray-900',
                     col.className
@@ -157,8 +156,7 @@ export function DataTable<T extends { id?: string | number }>({
                   <td
                     key={String(col.key)}
                     className={cx(
-                      'px-4 py-3 align-middle text-gray-700',
-                      col.align === 'center' && 'text-center',
+                      'px-4 py-3 align-middle text-gray-700 text-center',
                       col.align === 'right' && 'text-right',
                       'whitespace-nowrap',
                       col.className

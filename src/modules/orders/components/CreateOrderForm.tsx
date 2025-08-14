@@ -1,6 +1,12 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+// Ürün tipi
+interface ProductOption {
+  id: string;
+  name: string;
+  price: number;
+}
 import { Button } from '@/components/ui/button'
 
 interface OrderItemDraft {
@@ -14,6 +20,17 @@ interface CreateOrderFormProps {
 }
 
 export const CreateOrderForm: React.FC<CreateOrderFormProps> = ({ onSuccess, onCancel }) => {
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
+  // Ürünleri çek
+  useEffect(() => {
+    fetch('/api/inventory/products?limit=1000')
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.data && json.data.products) {
+          setProductOptions(json.data.products.map((p: any) => ({ id: p.id, name: p.name, price: p.price })));
+        }
+      });
+  }, []);
   const [customerId, setCustomerId] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerOptions, setCustomerOptions] = useState<Array<{ id: string; name: string; email?: string | null }>>([])
@@ -32,6 +49,12 @@ export const CreateOrderForm: React.FC<CreateOrderFormProps> = ({ onSuccess, onC
   const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index))
 
   const canSubmit = customerId.trim() !== '' && items.every(i => i.productId.trim() !== '' && i.quantity > 0)
+
+  // Toplam tutar hesaplama
+  const totalAmount = items.reduce((sum, item) => {
+    const product = productOptions.find(p => p.id === item.productId);
+    return sum + (product ? product.price * item.quantity : 0);
+  }, 0);
 
   // Müşteri arama debounce
   useEffect(() => {
@@ -184,14 +207,17 @@ export const CreateOrderForm: React.FC<CreateOrderFormProps> = ({ onSuccess, onC
         <div className="space-y-2">
           {items.map((item, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-              <input
-                type="text"
+              <select
                 value={item.productId}
                 onChange={e => updateItem(idx, { productId: e.target.value })}
-                placeholder="Ürün ID"
                 className="col-span-6 md:col-span-5 border rounded px-2 py-1.5 text-xs"
                 required
-              />
+              >
+                <option value="">Ürün seçiniz</option>
+                {productOptions.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} (₺{p.price})</option>
+                ))}
+              </select>
               <input
                 type="number"
                 value={item.quantity}
@@ -209,11 +235,14 @@ export const CreateOrderForm: React.FC<CreateOrderFormProps> = ({ onSuccess, onC
           ))}
         </div>
       </div>
-      <div className="flex gap-2 justify-end pt-2">
-        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>İptal</Button>
-        <Button type="submit" size="sm" disabled={!canSubmit || submitting}>{submitting ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+      <div className="flex items-center justify-between pt-2">
+        <div className="text-xs font-semibold text-gray-700">Toplam Tutar: ₺{totalAmount.toLocaleString('tr-TR')}</div>
+        <div className="flex gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel}>İptal</Button>
+          <Button type="submit" size="sm" disabled={!canSubmit || submitting}>{submitting ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+        </div>
       </div>
-      <p className="text-[10px] text-gray-500">Not: Ürün fiyatları backend'de henüz hesaplanmıyor (0). Daha sonra fiyat lookup entegre edilecek.</p>
+      <p className="text-[10px] text-gray-500">Not: Ürün fiyatları otomatik hesaplanır. İndirim alanı isteğe bağlıdır.</p>
     </form>
   )
 }

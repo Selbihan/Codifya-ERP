@@ -45,6 +45,8 @@ const getStatusText = (status: OrderStatus) => {
       return 'Teslim Edildi'
     case 'CANCELLED':
       return 'İptal Edildi'
+    case 'RETURNED':
+      return 'İade Edildi'
     default:
       return status
   }
@@ -58,45 +60,77 @@ export function OrderList({ orders, onEdit, onDelete, onViewHistory, onUpdateSta
       key: 'orderNumber',
       header: 'Sipariş',
       sortable: true,
+      align: 'left',
       accessor: (o) => (
-        <div className="flex flex-col">
+        <>
           <span className="font-medium">{o.orderNumber}</span>
-          <span className="text-xs text-gray-500">{o.items.length} ürün</span>
-        </div>
+          <br />
+          <span className="text-xs text-gray-500">{o.items?.length ?? 0} ürün</span>
+        </>
       )
     },
     {
       key: 'customer',
       header: 'Müşteri',
+      align: 'left',
       accessor: (o) => (
-        <div className="flex flex-col">
+        <>
           <span className="font-medium">{o.customer?.name || 'Bilinmeyen'}</span>
+          <br />
           <span className="text-xs text-gray-500">{o.customer?.email || '-'}</span>
-        </div>
+        </>
       )
     },
     {
       key: 'totalAmount',
       header: 'Tutar',
       sortable: true,
-      align: 'right',
-      accessor: (o) => (
-        <div className="flex flex-col items-end">
-          <span className="font-medium">
-            {o.totalAmount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-          </span>
-          {o.discount > 0 && (
-            <span className="text-xs text-green-600">
-              -{o.discount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })} indirim
+      align: 'left',
+      accessor: (o) => {
+        // İndirim öncesi ürün fiyatı*adet toplamı
+        const itemsTotal = Array.isArray(o.items)
+          ? o.items.reduce((sum, item) => sum + ((item.product?.price || 0) * (item.quantity || 0)), 0)
+          : 0;
+        return (
+          <>
+            <span className="font-medium">
+              {itemsTotal.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
             </span>
-          )}
-        </div>
-      )
+            {o.discount > 0 && (
+              <>
+                <br />
+                <span className="text-xs text-green-600">
+                  -{o.discount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })} indirim
+                </span>
+              </>
+            )}
+          </>
+        );
+      }
+    },
+    {
+      key: 'payableAmount',
+      header: 'Ödenecek Tutar',
+      align: 'left',
+      accessor: (o) => {
+        // Ürünlerin fiyat*adet toplamı - indirim
+        const itemsTotal = Array.isArray(o.items)
+          ? o.items.reduce((sum, item) => sum + ((item.product?.price || 0) * (item.quantity || 0)), 0)
+          : 0;
+        const discount = o.discount || 0;
+        const payable = itemsTotal - discount;
+        return (
+          <span className="font-semibold">
+            {payable.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
+          </span>
+        );
+      }
     },
     {
       key: 'status',
       header: 'Durum',
       sortable: true,
+      align: 'left',
       accessor: (o) => (
         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(o.status)}`}>
           {getStatusText(o.status)}
@@ -113,30 +147,26 @@ export function OrderList({ orders, onEdit, onDelete, onViewHistory, onUpdateSta
       key: 'actions',
       header: 'İşlemler',
       accessor: (o) => (
-        <div className="flex items-center gap-2">
-          <button onClick={() => onViewHistory(o.id)} className="text-blue-600 hover:text-blue-900 text-xs">Geçmiş</button>
-          <button onClick={() => onEdit(o)} className="text-indigo-600 hover:text-indigo-900 text-xs">Düzenle</button>
-          <div className="relative">
-            <button
-              onClick={() => setSelectedOrder(selectedOrder === o.id ? null : o.id)}
-              className="text-green-600 hover:text-green-900 text-xs"
-            >Durum</button>
-            {selectedOrder === o.id && (
-              <div className="absolute right-0 mt-1 w-44 bg-white rounded-md shadow-lg z-20 border">
-                <div className="py-1 max-h-60 overflow-auto text-xs">
-                  {(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] as OrderStatus[]).map(status => (
-                    <button
-                      key={status}
-                      onClick={() => { onUpdateStatus(o.id, status); setSelectedOrder(null) }}
-                      className={`block w-full text-left px-3 py-1.5 hover:bg-gray-50 ${o.status === status ? 'bg-gray-50 font-medium' : ''}`}
-                    >{getStatusText(status)}</button>
-                  ))}
-                </div>
+        <>
+          <button
+            onClick={() => setSelectedOrder(selectedOrder === o.id ? null : o.id)}
+            className="text-green-600 hover:text-green-900 text-xs"
+          >Durum</button>
+          {selectedOrder === o.id && (
+            <div className="absolute right-0 mt-1 w-44 bg-white rounded-md shadow-lg z-20 border">
+              <div className="py-1 max-h-60 overflow-auto text-xs">
+                {(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'] as OrderStatus[]).map(status => (
+                  <button
+                    key={status}
+                    onClick={() => { onUpdateStatus(o.id, status); setSelectedOrder(null) }}
+                    className={`block w-full text-left px-3 py-1.5 hover:bg-gray-50 ${o.status === status ? 'bg-gray-50 font-medium' : ''}`}
+                  >{getStatusText(status)}</button>
+                ))}
               </div>
-            )}
-          </div>
-          <button onClick={() => onDelete(o.id)} className="text-red-600 hover:text-red-900 text-xs">Sil</button>
-        </div>
+            </div>
+          )}
+          <button onClick={() => onDelete(o.id)} className="text-red-600 hover:text-red-900 text-xs ml-2">Sil</button>
+        </>
       )
     }
   ]

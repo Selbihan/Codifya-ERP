@@ -35,7 +35,7 @@ const navigationItems: NavItem[] = [
     children: [
       { name: 'Ürünler', href: '/inventory/products' },
       { name: 'Kategoriler', href: '/inventory/categories' },
-      { name: 'Stok Hareketleri', href: '/inventory/movements' }
+  { name: 'Stok Hareketleri', href: '/inventory/stock-movements' }
     ]
   },
   {

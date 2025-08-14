@@ -2,17 +2,17 @@ import { Product } from '@/types'
 import { IBaseRepository } from './baseRepository'
 
 export interface CreateProductDTO {
-  name: string
-  description?: string
-  sku: string
-  price: number
-  cost: number
-  stock: number
-  minStock: number
-  categoryId?: string
-  createdBy: string
+  name: string;
+  description?: string;
+  sku: string;
+  price: number;
+  cost: number;
+  stock: number;
+  minStock: number;
+  categoryId?: string;
+  isActive?: boolean;
+  createdBy: number;
 }
-
 export interface UpdateProductDTO {
   name?: string
   description?: string

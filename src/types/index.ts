@@ -63,8 +63,8 @@ export interface Customer {
 export interface Category {
   id: string
   name: string
-  description?: string | null
-  parentId?: string | null
+  description?: string
+  parentId?: string
   isActive: boolean
   createdAt: Date
   updatedAt: Date
@@ -79,11 +79,17 @@ export interface Product {
   cost: number
   stock: number
   minStock: number
+  category?: Category | null
   categoryId?: string | null
   isActive: boolean
   createdAt: Date
   updatedAt: Date
   createdBy: number
+  createdByUser?: {
+    id: number;
+    name: string;
+    email: string;
+  }
 }
 
 export type StockMovementType = 'IN' | 'OUT' | 'ADJUSTMENT'

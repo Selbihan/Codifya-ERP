@@ -4,8 +4,8 @@ import {
   UpdateProductRequest, 
   ProductFilters, 
   ProductListResponse 
-} from '../types'
-import { Product, User } from '@/types'
+} from '../../inventory/types'
+import { User, Product } from '@/types'
 
 // Prisma'dan dönen veriyi User tipine uygun şekilde map'le
 function mapUser(user: any): User {
@@ -21,45 +21,83 @@ function mapUser(user: any): User {
   }
 }
 
-// Prisma'dan dönen veriyi Product tipine uygun şekilde map'le
-function mapProduct(prismaProduct: any): Product {
+// Service response tipi: temel Product + ilişkiler
+export type ProductExtended = Product & {
+  category?: {
+    id: string
+    name: string
+    description?: string
+    parentId?: string
+    isActive: boolean
+    createdAt: Date
+    updatedAt: Date
+  } | null
+  createdByUser?: Pick<User, 'id' | 'name' | 'email'>
+}
+
+// Prisma dönen veriyi genişletilmiş tipe map'le
+function mapProduct(prismaProduct: any): ProductExtended {
   return {
     id: prismaProduct.id,
     name: prismaProduct.name,
-    description: prismaProduct.description || undefined, // null -> undefined
+    description: prismaProduct.description ?? undefined,
     sku: prismaProduct.sku,
     price: prismaProduct.price,
     cost: prismaProduct.cost,
     stock: prismaProduct.stock,
     minStock: prismaProduct.minStock,
-    category: prismaProduct.category ? {
-      id: prismaProduct.category.id,
-      name: prismaProduct.category.name,
-      description: prismaProduct.category.description || undefined,
-      parentId: prismaProduct.category.parentId || undefined,
-      isActive: prismaProduct.category.isActive,
-      createdAt: prismaProduct.category.createdAt,
-      updatedAt: prismaProduct.category.updatedAt
-    } : null,
+    categoryId: prismaProduct.categoryId ?? undefined,
     isActive: prismaProduct.isActive,
     createdAt: prismaProduct.createdAt,
     updatedAt: prismaProduct.updatedAt,
-    createdBy: prismaProduct.createdBy
+    createdBy: prismaProduct.createdBy,
+    // extra relations
+    category: prismaProduct.category
+      ? {
+          id: prismaProduct.category.id,
+          name: prismaProduct.category.name,
+          description: prismaProduct.category.description ?? undefined,
+          parentId: prismaProduct.category.parentId ?? undefined,
+          isActive: prismaProduct.category.isActive,
+          createdAt: prismaProduct.category.createdAt,
+          updatedAt: prismaProduct.category.updatedAt
+        }
+      : null,
+    createdByUser: prismaProduct.createdByUser
+      ? mapUser(prismaProduct.createdByUser)
+      : undefined
   }
 }
 
 export interface IProductService {
-  createProduct(data: CreateProductRequest, createdBy: string): Promise<any>
-  getProductById(id: string): Promise<any>
-  updateProduct(id: string, data: UpdateProductRequest): Promise<any>
-  deleteProduct(id: string): Promise<any>
-  getProducts(filters: ProductFilters): Promise<ProductListResponse>
-  getLowStockProducts(): Promise<any[]>
-  updateStock(productId: string, newStock: number): Promise<any>
+  createProduct(data: CreateProductRequest, createdBy: number): Promise<ProductExtended>
+  getProductById(id: string): Promise<ProductExtended>
+  updateProduct(id: string, data: UpdateProductRequest): Promise<ProductExtended>
+  deleteProduct(id: string): Promise<{ message: string }>
+  getProducts(filters: ProductFilters): Promise<{
+    products: ProductExtended[]
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }>
+  getLowStockProducts(): Promise<ProductExtended[]>
+  updateStock(productId: string, newStock: number): Promise<ProductExtended>
+  getProductStats(): Promise<{
+    total: number
+    active: number
+    inactive: number
+    lowStock: number
+    outOfStock: number
+    totalValue: number
+  }>
 }
 
 export class ProductService implements IProductService {
-  async createProduct(data: CreateProductRequest, createdBy: string) {
+  static create(): ProductService {
+    return new ProductService()
+  }
+  async createProduct(data: CreateProductRequest, createdBy: number) {
     // SKU benzersizlik kontrolü
     const existingProduct = await prisma.product.findUnique({
       where: { sku: data.sku }
@@ -84,7 +122,7 @@ export class ProductService implements IProductService {
       data: {
         ...data,
         categoryId: data.categoryId,
-        createdBy: Number(createdBy)
+        createdBy
       },
       include: {
         category: true,
@@ -228,61 +266,56 @@ export class ProductService implements IProductService {
       where.stock = inStock ? { gt: 0 } : { lte: 0 }
     }
 
-    if (lowStock !== undefined) {
-      where.stock = { lte: prisma.product.fields.minStock }
-    }
-
     if (isActive !== undefined) {
       where.isActive = isActive
     }
 
-    // Toplam sayı
-    const total = await prisma.product.count({ where })
-
-    // Ürünler
-    const rawProducts = await prisma.product.findMany({
-      where,
-      include: {
-        category: true,
-        createdByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true
+    // lowStock filtrelemesini in-memory uygulamak için iki yol:
+    // 1) lowStock true ise tüm listeyi çek → filtrele → sayfala
+    // 2) değilse normal sayfalı sorgu
+    if (lowStock) {
+      const all = await prisma.product.findMany({
+        where,
+        include: {
+          category: true,
+          createdByUser: { select: { id: true, name: true, email: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+      const low = all.filter(p => (p.stock || 0) <= (p.minStock || 0))
+      const total = low.length
+      const paged = low.slice(skip, skip + limit)
+      const products = paged.map(mapProduct)
+      return { products, total, page, limit, totalPages: Math.ceil(total / limit) }
+    } else {
+      // Toplam sayı
+      const total = await prisma.product.count({ where })
+      // Ürünler
+      const rawProducts = await prisma.product.findMany({
+        where,
+        include: {
+          category: true,
+          createdByUser: {
+            select: { id: true, name: true, email: true }
           }
-        }
-      },
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' }
-    })
-
-    const products = rawProducts.map(mapProduct)
-
-    return {
-      products,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' }
+      })
+      const products = rawProducts.map(mapProduct)
+      return { products, total, page, limit, totalPages: Math.ceil(total / limit) }
     }
   }
 
   async getLowStockProducts() {
     const products = await prisma.product.findMany({
-      where: {
-        stock: {
-          lte: prisma.product.fields.minStock
-        },
-        isActive: true
-      },
-      include: {
-        category: true
-      },
+      where: { isActive: true },
+      include: { category: true },
       orderBy: { stock: 'asc' }
     })
-
-    return products.map(mapProduct)
+    const low = products.filter(p => (p.stock || 0) <= (p.minStock || 0))
+    return low.map(mapProduct)
   }
 
   async updateStock(productId: string, newStock: number) {
@@ -303,5 +336,26 @@ export class ProductService implements IProductService {
     })
 
     return mapProduct(updatedProduct)
+  }
+
+  async getProductStats() {
+    const [total, active, outOfStock, all] = await Promise.all([
+      prisma.product.count(),
+      prisma.product.count({ where: { isActive: true } }),
+      prisma.product.count({ where: { stock: { lte: 0 } } }),
+      prisma.product.findMany({ select: { price: true, stock: true, minStock: true } })
+    ])
+
+    const lowStock = all.filter(p => (p.stock || 0) <= (p.minStock || 0)).length
+    const totalValue = all.reduce((sum, p) => sum + (p.price || 0) * (p.stock || 0), 0)
+
+    return {
+      total,
+      active,
+      inactive: total - active,
+      lowStock,
+      outOfStock,
+      totalValue
+    }
   }
 } 

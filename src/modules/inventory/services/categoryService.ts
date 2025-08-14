@@ -192,7 +192,6 @@ export class CategoryService {
 
   async getAllCategories(): Promise<Category[]> {
     const categories = await prisma.category.findMany({
-      where: { isActive: true },
       include: {
         parent: true,
         children: true,

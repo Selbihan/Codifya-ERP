@@ -11,7 +11,7 @@ import { Product, User, Category } from '@/types'
 // Prisma'dan dönen veriyi User tipine uygun şekilde map'le
 function mapUser(user: any): User {
   return {
-    id: user.id,
+    id: typeof user.id === 'number' ? user.id : parseInt(user.id),
     name: user.name,
     email: user.email,
     password: "",
@@ -53,7 +53,11 @@ function mapProduct(prismaProduct: any): Product {
     updatedAt: prismaProduct.updatedAt,
     createdBy: prismaProduct.createdBy,
     createdByUser: prismaProduct.createdByUser
-      ? mapUser(prismaProduct.createdByUser)
+      ? {
+          id: typeof prismaProduct.createdByUser.id === 'number' ? prismaProduct.createdByUser.id : parseInt(prismaProduct.createdByUser.id),
+          name: prismaProduct.createdByUser.name,
+          email: prismaProduct.createdByUser.email
+        }
       : undefined,
   };
 }
@@ -69,7 +73,7 @@ export class ProductRepository extends BaseRepository<Product, CreateProductDTO,
   async create(data: CreateProductDTO): Promise<Product> {
     try {
       const result = await this.prisma.product.create({
-        data,
+        data: { ...data, createdBy: Number(data.createdBy) },
         include: this.getIncludeRelations()
       })
       return mapProduct(result)

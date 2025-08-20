@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient } from '@prisma/client'
 import { BaseRepository } from '../base/baseRepository'
 import { 
   ICustomerRepository, 
@@ -32,6 +32,27 @@ function mapCustomer(prismaCustomer: any): Customer {
 
 export class CustomerRepository extends BaseRepository<Customer, CreateCustomerDTO, UpdateCustomerDTO, CustomerFilters> 
   implements ICustomerRepository {
+
+  async findManyPaginated(filters: CustomerFilters = {}, page = 1, limit = 10) {
+    const where = this.buildWhereClause(filters);
+    const [total, data] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        include: this.getIncludeRelations(),
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' }
+      })
+    ]);
+    return {
+      data: data.map(mapCustomer),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
   
   constructor(prisma: PrismaClient) {
     super(prisma, 'customer')
@@ -44,7 +65,7 @@ export class CustomerRepository extends BaseRepository<Customer, CreateCustomerD
           id: true,
           name: true,
           email: true
-        }
+        } 
       },
       orders: true,
       invoices: true
@@ -96,6 +117,7 @@ export class CustomerRepository extends BaseRepository<Customer, CreateCustomerD
 
   async findByCompany(company: string): Promise<Customer[]> {
     try {
+      console.log('Finding customers by company:', company)
       const customers = await this.prisma.customer.findMany({
         where: { 
           company: { contains: company } 
@@ -204,11 +226,11 @@ export class CustomerRepository extends BaseRepository<Customer, CreateCustomerD
       ])
 
       return {
-        orders: orders.map(order => ({
+        orders: orders.map((order: any) => ({
           ...order,
           amount: order.totalAmount
         })),
-        invoices: invoices.map(invoice => ({
+        invoices: invoices.map((invoice: any) => ({
           ...invoice,
           amount: invoice.totalAmount
         })),

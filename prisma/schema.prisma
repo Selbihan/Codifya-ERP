@@ -6,7 +6,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+
 }
 
 datasource db {
@@ -338,12 +338,14 @@ model User {
   contacts                                           Contact[]
   accounts                                           Account[]
   activities                                         Activity[]
+  journalEntries                                     JournalEntry[]
   createdByUser                                      User?              @relation("UserCreatedBy", fields: [createdBy], references: [id])
   createdUsers                                       User[]             @relation("UserCreatedBy")
   deletedByUser                                      User?              @relation("UserDeletedBy", fields: [deletedBy], references: [id])
   deletedUsers                                       User[]             @relation("UserDeletedBy")
   updatedByUser                                      User?              @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
   updatedUsers                                       User[]             @relation("UserUpdatedBy")
+  passwordResetTokens                                PasswordResetToken[]
 
   @@map("users")
 }
@@ -525,3 +527,109 @@ model PaymentAllocation {
 // Payment ve Invoice modellerine tahsis ilişkilerinin eklenmesi
 // NOT: Financial tutarlar şu an Float; ileride Decimal'e migrasyon planlanmalı (bkz: InvoiceLine & PaymentAllocation Decimal kullanıyor)
 
+
+// --- MUHASEBE & CARİ HESAP MODELLERİ ---
+
+model ChartOfAccount {
+  id             String   @id @default(cuid())
+  code           String   @unique // Hesap kodu (ör: 120.01)
+  name           String   // Hesap adı
+  type           String   // (Gelir, Gider, Varlık, Borç, Özsermaye)
+  currency       String   // TRY, USD, EUR ...
+  isActive       Boolean  @default(true)
+  parentId       String?  // Üst hesap (hiyerarşi için)
+  parent         ChartOfAccount? @relation("AccountParent", fields: [parentId], references: [id])
+  children       ChartOfAccount[] @relation("AccountParent")
+
+  // Opsiyonel Alanlar
+  projectCode    String?
+  specialCode    String?
+  operationCode  String?
+  branchId       String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  journalEntryLines JournalEntryLine[]
+}
+
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  date        DateTime
+  description String?
+  lines       JournalEntryLine[]
+  createdBy   Int
+  createdByUser User   @relation(fields: [createdBy], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model JournalEntryLine {
+  id              String   @id @default(cuid())
+  journalEntryId  String
+  journalEntry    JournalEntry @relation(fields: [journalEntryId], references: [id])
+  accountId       String
+  account         ChartOfAccount @relation(fields: [accountId], references: [id])
+  debit           Decimal  @db.Decimal(18,2)
+  credit          Decimal  @db.Decimal(18,2)
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CurrentAccount {
+  id        String   @id @default(cuid())
+  name      String
+  type      CurrentAccountType
+  taxNumber String?
+  address   String?
+  phone     String?
+  email     String?
+  isActive  Boolean  @default(true)
+  transactions CurrentAccountTransaction[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum CurrentAccountType {
+  CUSTOMER
+  SUPPLIER
+  OTHER
+}
+
+model CurrentAccountTransaction {
+  id                String   @id @default(cuid())
+  currentAccountId  String
+  currentAccount    CurrentAccount @relation(fields: [currentAccountId], references: [id])
+  date              DateTime
+  amount            Decimal  @db.Decimal(18,2)
+  direction         TransactionDirection
+  description       String?
+  reference         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum TransactionDirection {
+  DEBIT
+  CREDIT
+}
+
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("password_reset_tokens")
+}

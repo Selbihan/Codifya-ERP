@@ -53,6 +53,7 @@ export interface InvoiceFilters {
   dueDateTo?: string
   page?: number
   limit?: number
+  search?: string
 }
 
 export interface InvoiceListResponse {

@@ -34,6 +34,8 @@ export function CustomerList() {
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [showNewForm, setShowNewForm] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [modalMode, setModalMode] = useState<'view' | 'edit' | null>(null)
 
   useEffect(() => {
     fetchCustomers()
@@ -46,14 +48,11 @@ export function CustomerList() {
         page: currentPage.toString(),
         limit: '10'
       })
-      
       if (search) {
         params.append('search', search)
       }
-
       const response = await fetch(`/api/crm/customers?${params}`)
       if (!response.ok) throw new Error('Müşteri listesi yüklenemedi')
-      
       const result = await response.json()
       if (result.success) {
         setData(result.data)
@@ -71,6 +70,38 @@ export function CustomerList() {
     e.preventDefault()
     setCurrentPage(1)
     fetchCustomers()
+  }
+
+  function getCustomerColumns(setSelectedCustomer: any, setModalMode: any): DataTableColumn<Customer>[] {
+    return [
+      { key: 'name', header: 'İsim', sortable: true, align: 'left' },
+      { key: 'email', header: 'Email', accessor: c => c.email || '-', align: 'left' },
+      { key: 'phone', header: 'Telefon', accessor: c => c.phone || '-', align: 'left' },
+      { key: 'company', header: 'Şirket', accessor: c => c.company || '-', align: 'left' },
+      { key: 'isActive', header: 'Durum', accessor: c => (
+          <Badge variant={c.isActive ? 'success' : 'error'}>{c.isActive ? 'Aktif' : 'Pasif'}</Badge>
+        ), align: 'left' },
+      { key: 'createdAt', header: 'Kayıt Tarihi', sortable: true, accessor: c => new Date(c.createdAt).toLocaleDateString('tr-TR'), align: 'left' },
+      { key: 'actions', header: 'İşlemler', accessor: c => (
+          <div className="flex gap-1">
+            <Button size="sm" variant="ghost" onClick={() => { setSelectedCustomer(c); setModalMode('view'); }}>Görüntüle</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setSelectedCustomer(c); setModalMode('edit'); }}>Düzenle</Button>
+          </div>
+        ), align: 'left' }
+    ]
+  }
+
+  // Customer'ı CustomerFormData'ya dönüştür
+  function toCustomerFormData(customer: Customer) {
+    return {
+      name: customer.name || '',
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: '', // Eksikse boş bırak
+      company: customer.company || '',
+      taxNumber: '', // Eksikse boş bırak
+      id: customer.id
+    }
   }
 
   if (error) {
@@ -134,7 +165,7 @@ export function CustomerList() {
           <>
             <DataTable
               data={data.customers}
-              columns={customerColumns}
+              columns={getCustomerColumns(setSelectedCustomer, setModalMode)}
               striped
               compact
               initialSort={{ key: 'createdAt', direction: 'desc' }}
@@ -148,6 +179,33 @@ export function CustomerList() {
           </>
         )}
       </Card>
+
+      {/* Modal */}
+      {selectedCustomer && modalMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg relative animate-fade-in">
+            <button
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl"
+              onClick={() => { setSelectedCustomer(null); setModalMode(null); }}
+            >×</button>
+            {modalMode === 'view' ? (
+              <div>
+                <h2 className="text-xl font-bold mb-4">Müşteri Bilgileri</h2>
+                <div className="space-y-2">
+                  <div><b>İsim:</b> {selectedCustomer.name}</div>
+                  <div><b>Email:</b> {selectedCustomer.email || '-'}</div>
+                  <div><b>Telefon:</b> {selectedCustomer.phone || '-'}</div>
+                  <div><b>Şirket:</b> {selectedCustomer.company || '-'}</div>
+                  <div><b>Durum:</b> {selectedCustomer.isActive ? 'Aktif' : 'Pasif'}</div>
+                  <div><b>Kayıt Tarihi:</b> {new Date(selectedCustomer.createdAt).toLocaleDateString('tr-TR')}</div>
+                </div>
+              </div>
+            ) : (
+              <CustomerForm customer={toCustomerFormData(selectedCustomer)} onSave={() => { setSelectedCustomer(null); setModalMode(null); fetchCustomers(); }} onCancel={() => { setSelectedCustomer(null); setModalMode(null); }} />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* İstatistikler */}
       {data && (
@@ -163,20 +221,3 @@ export function CustomerList() {
     </div>
   )
 }
-
-const customerColumns: DataTableColumn<Customer>[] = [
-  { key: 'name', header: 'İsim', sortable: true },
-  { key: 'email', header: 'Email', accessor: c => c.email || '-' },
-  { key: 'phone', header: 'Telefon', accessor: c => c.phone || '-' },
-  { key: 'company', header: 'Şirket', accessor: c => c.company || '-' },
-  { key: 'isActive', header: 'Durum', accessor: c => (
-      <Badge variant={c.isActive ? 'success' : 'error'}>{c.isActive ? 'Aktif' : 'Pasif'}</Badge>
-    ) },
-  { key: 'createdAt', header: 'Kayıt Tarihi', sortable: true, accessor: c => new Date(c.createdAt).toLocaleDateString('tr-TR') },
-  { key: 'actions', header: 'İşlemler', accessor: c => (
-      <div className="flex gap-1">
-        <Button size="sm" variant="ghost">Görüntüle</Button>
-        <Button size="sm" variant="ghost">Düzenle</Button>
-      </div>
-    ) }
-]

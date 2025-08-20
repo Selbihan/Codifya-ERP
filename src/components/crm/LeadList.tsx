@@ -105,21 +105,16 @@ export function LeadList() {
   }
 
   const leadColumns: DataTableColumn<Lead>[] = [
-    { key: 'name', header: 'İsim', sortable: true },
-    { key: 'email', header: 'Email', accessor: l => l.email || '-' },
-    { key: 'phone', header: 'Telefon', accessor: l => l.phone || '-' },
-    { key: 'source', header: 'Kaynak', accessor: l => getSourceBadge(l.source) },
-    { key: 'status', header: 'Durum', accessor: l => getStatusBadge(l.status) },
-    { key: 'createdAt', header: 'Kayıt Tarihi', sortable: true, accessor: l => new Date(l.createdAt).toLocaleDateString('tr-TR') },
-    { key: 'actions', header: 'İşlemler', accessor: l => (
+  { key: 'name', header: 'İsim', sortable: true, align: 'left' },
+  { key: 'email', header: 'Email', accessor: l => l.email || '-', align: 'left' },
+  { key: 'phone', header: 'Telefon', accessor: l => l.phone || '-', align: 'left' },
+  { key: 'source', header: 'Kaynak', accessor: l => getSourceBadge(l.source), align: 'left' },
+  { key: 'status', header: 'Durum', accessor: l => getStatusBadge(l.status), align: 'left' },
+  { key: 'createdAt', header: 'Kayıt Tarihi', sortable: true, accessor: l => new Date(l.createdAt).toLocaleDateString('tr-TR'), align: 'left' },
+  { key: 'actions', header: 'İşlemler', accessor: l => (
       <div className="flex gap-1 items-center">
         <Button size="sm" variant="ghost">Görüntüle</Button>
         <Button size="sm" variant="ghost">Dönüştür</Button>
-        <a
-          href={`/crm/activities?leadId=${l.id}`}
-          className="text-xs text-blue-600 hover:underline px-1"
-          title="Lead aktiviteleri"
-        >Aktiviteler</a>
       </div>
     ) }
   ]

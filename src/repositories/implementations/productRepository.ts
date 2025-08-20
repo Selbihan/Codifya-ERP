@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient } from '@prisma/client'
 import { BaseRepository } from '../base/baseRepository'
 import {
   IProductRepository,
@@ -32,7 +32,7 @@ function mapCategory(prismaCategory: any): Category {
     isActive: prismaCategory.isActive,
     createdAt: prismaCategory.createdAt,
     updatedAt: prismaCategory.updatedAt,
-    products: [],
+    //products: [],
   };
 }
 
@@ -286,7 +286,7 @@ export class ProductRepository extends BaseRepository<Product, CreateProductDTO,
       this.prisma.product.count({ where: { isActive: false } }),
       this.prisma.product.count({ where: { stock: { lte: 5 } } }),
       this.prisma.product.count({ where: { stock: { lte: 0 } } }),
-      this.prisma.product.aggregate({ _sum: { price: true } }).then(res => res._sum.price || 0)
+      this.prisma.product.aggregate({ _sum: { price: true } }).then((res: any) => res._sum.price || 0)
     ])
     return { total, active, inactive, lowStock, outOfStock, totalValue }
   }

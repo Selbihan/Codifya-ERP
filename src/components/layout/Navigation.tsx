@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 // ThemeToggle kaldırıldı
@@ -53,6 +53,8 @@ const navigationItems: NavItem[] = [
     href: '/accounting',
     icon: '💰',
     children: [
+      { name: 'Hesap Planı', href: '/accounting/chart-of-account' },
+      { name: 'Cari Hesaplar', href: '/accounting/current-account' },
       { name: 'Faturalar', href: '/accounting/invoices' },
       { name: 'Ödemeler', href: '/accounting/payments' },
       { name: 'Raporlar', href: '/accounting/reports' }
@@ -69,6 +71,7 @@ export default function Navigation({ collapsed: collapsedProp, setCollapsed: set
   const pathname = usePathname()
   const [expandedItems, setExpandedItems] = useState<string[]>([])
   const [internalCollapsed, setInternalCollapsed] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const collapsed = collapsedProp !== undefined ? collapsedProp : internalCollapsed
   const setCollapsed = (v: boolean | ((p: boolean) => boolean)) => {
     if (setCollapsedProp) {
@@ -77,6 +80,13 @@ export default function Navigation({ collapsed: collapsedProp, setCollapsed: set
       setInternalCollapsed(typeof v === 'function' ? (v as any)(internalCollapsed) : v)
     }
   }
+  // Ekran boyutuna göre mobil mi kontrolü
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
   // Tema düğmesi kaldırıldığı için useTheme kullanımını da kaldırdık
 
   const toggleExpanded = (itemName: string) => {
@@ -157,14 +167,31 @@ export default function Navigation({ collapsed: collapsedProp, setCollapsed: set
                   {active && item.name !== 'Müşteri' && (
                     <span className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-[var(--color-primary)] to-[var(--color-accent)]" />
                   )}
-                  <Link href={item.href} className={`flex items-center ${collapsed ? '' : 'gap-3'} flex-1 min-w-0`}>
-                    <span className="text-lg leading-none select-none">{item.icon}</span>
-                    {!collapsed && (
-                      <span className={`truncate text-sm ${active ? 'text-[var(--color-text)] font-semibold' : 'text-[var(--color-text-muted)]'}`}>
-                        {item.name}
-                      </span>
-                    )}
-                  </Link>
+                  {item.children ? (
+                    <div className={`flex items-center ${collapsed ? '' : 'gap-3'} flex-1 min-w-0 cursor-default select-none`}>
+                      <span className="text-lg leading-none">{item.icon}</span>
+                      {!collapsed && (
+                        <span className={`truncate text-sm ${active ? 'text-[var(--color-text)] font-semibold' : 'text-[var(--color-text-muted)]'}`}>
+                          {item.name}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <Link 
+                      href={item.href}
+                      className={`flex items-center ${collapsed ? '' : 'gap-3'} flex-1 min-w-0`}
+                      onClick={() => {
+                        if (isMobile) setCollapsed(true)
+                      }}
+                    >
+                      <span className="text-lg leading-none select-none">{item.icon}</span>
+                      {!collapsed && (
+                        <span className={`truncate text-sm ${active ? 'text-[var(--color-text)] font-semibold' : 'text-[var(--color-text-muted)]'}`}>
+                          {item.name}
+                        </span>
+                      )}
+                    </Link>
+                  )}
                   {item.children && !collapsed && (
                     <button
                       aria-label="Alt menü"
@@ -186,6 +213,9 @@ export default function Navigation({ collapsed: collapsedProp, setCollapsed: set
                               ? 'text-[var(--color-text)] font-semibold'
                               : 'text-[var(--color-text-muted)] opacity-100'
                           } transition-none`}
+                          onClick={() => {
+                            if (isMobile) setCollapsed(true)
+                          }}
                         >
                           <span className="truncate w-full">{child.name}</span>
                         </Link>

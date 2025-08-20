@@ -4,24 +4,40 @@ export type InvoiceType = 'SALES' | 'PURCHASE' | 'EXPENSE'
 export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PAID' | 'CANCELLED'
 
 export interface Invoice {
-  id: string
-  invoiceNumber: string
+  id: string;
+  invoiceNumber: string;
   orderId?: string | null
-  customerId?: string | null
-  type: InvoiceType
-  status: InvoiceStatus
-  subtotal: number
-  taxAmount: number
-  discount: number
-  totalAmount: number
-  dueDate: Date
-  issueDate: Date
-  paidDate?: Date | null
-  notes?: string | null
-  createdAt: Date
-  updatedAt: Date
-  createdBy: string
+customerId?: string | null
+  createdBy: number; // Prisma'dan gelen sayı tipi ile uyumlu
+  issueDate: Date;
+  dueDate: Date;
+  status: InvoiceStatus;
+  type: InvoiceType;
+  totalAmount: number;
+  taxAmount?: number;
+  discount?: number;
+  notes?: string;
+  order?: {
+    id: string;
+    customer: {
+      id: string;
+      name: string;
+      createdBy: number;
+      email?: string;
+      phone?: string;
+      address?: string;
+      company?: string;
+      taxNumber?: string;
+      isActive: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+    items: { id: string; productId: string; quantity: number; price: number }[];
+  } | null;
+  customer?: { id: string; name: string } | null;
+  createdByUser?: { id: number; name: string } | null;
 }
+
 
 export interface CreateInvoiceDTO {
   invoiceNumber: string

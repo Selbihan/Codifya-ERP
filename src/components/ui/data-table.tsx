@@ -94,9 +94,9 @@ export function DataTable<T extends { id?: string | number }>({
   }, [sortedData, pagination])
 
   return (
-    <div className={cx('w-full overflow-x-auto rounded-md border border-gray-200 bg-white shadow-sm', className)}>
-      <table className={cx('min-w-full table-fixed border-separate border-spacing-0', compact ? 'text-sm' : 'text-sm')}>        
-        <thead className="bg-gray-50">
+  <div className={cx('w-full overflow-x-auto rounded-md border border-gray-200', 'bg-[var(--color-surface)] shadow-sm', className)}>
+  <table className={cx('min-w-full table-fixed border-separate border-spacing-0', compact ? 'text-sm' : 'text-sm')}>
+  <thead className="bg-[var(--color-surface)]">
           <tr>
             {visibleCols.map(col => {
               const isSorted = sort?.key === col.key
@@ -106,7 +106,8 @@ export function DataTable<T extends { id?: string | number }>({
                   style={{ width: col.width }}
                   onClick={() => handleSort(col)}
                   className={cx(
-                    'px-4 py-3 text-center font-medium text-gray-600 select-none border-b border-gray-200',
+                    'px-4 py-3 text-center font-medium select-none border-b border-gray-200',
+                    'text-[var(--color-text)]',
                     col.align === 'right' && 'text-right',
                     col.sortable && 'cursor-pointer hover:text-gray-900',
                     col.className
@@ -148,16 +149,20 @@ export function DataTable<T extends { id?: string | number }>({
                 onClick={() => onRowClick?.(row)}
                 className={cx(
                   'border-b border-gray-100 transition-colors',
-                  onRowClick && 'cursor-pointer hover:bg-gray-50',
-                  striped && idx % 2 === 1 && 'bg-gray-50'
+                  onRowClick && !(
+                    // Cari hesaplar tablosu için hover kaldır
+                    (typeof window !== 'undefined' && window.location.pathname.includes('current-account'))
+                  ) && 'cursor-pointer hover:bg-gray-50 dark:hover:bg-[#23272e]',
+                  striped && idx % 2 === 1 && 'bg-[var(--color-surface-alt)]'
                 )}
               >
                 {visibleCols.map(col => (
                   <td
                     key={String(col.key)}
                     className={cx(
-                      'px-4 py-3 align-middle text-gray-700 text-center',
+                      'px-4 py-3 align-middle text-[var(--color-text)] text-left',
                       col.align === 'right' && 'text-right',
+                      col.align === 'center' && 'text-center',
                       'whitespace-nowrap',
                       col.className
                     )}

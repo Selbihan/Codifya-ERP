@@ -44,71 +44,76 @@ function mapStockMovement(movement: any): StockMovement {
 }
 
 export class StockService {
-  async addStockMovement(data: CreateStockMovementRequest, createdBy: string): Promise<StockMovement> {
-    // Ürün kontrolü
-    const product = await prisma.product.findUnique({
-      where: { id: data.productId }
-    })
-
-    if (!product) {
-      throw new Error('Ürün bulunamadı')
-    }
-
-    const previousStock = product.stock
-    let newStock = previousStock
-
-    // Stok hesaplama
-    switch (data.type) {
-      case 'IN':
-        newStock = previousStock + data.quantity
-        break
-      case 'OUT':
-        if (previousStock < data.quantity) {
-          throw new Error('Yetersiz stok')
-        }
-        newStock = previousStock - data.quantity
-        break
-      case 'ADJUSTMENT':
-        newStock = data.quantity
-        break
-    }
-
-    // Transaction ile stok güncelleme ve hareket kaydı
-    const result = await prisma.$transaction(async (tx: PrismaClient) => {
-      // Stok güncelleme
-      await tx.product.update({
-        where: { id: data.productId },
-        data: { stock: newStock }
+  async addStockMovement(data: CreateStockMovementRequest, createdBy: number): Promise<StockMovement> {
+    try {
+      // Ürün kontrolü
+      const product = await prisma.product.findUnique({
+        where: { id: data.productId }
       })
 
-      // Stok hareketi kaydı
-      const stockMovement = await tx.stockMovement.create({
-        data: {
-          productId: data.productId,
-          type: data.type,
-          quantity: data.quantity,
-          previousStock,
-          newStock,
-          reason: data.reason,
-          reference: data.reference,
-          createdBy
-        },
-        include: {
-          product: true,
-          createdByUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true
+      if (!product) {
+        throw new Error('Ürün bulunamadı')
+      }
+
+      const previousStock = product.stock
+      let newStock = previousStock
+
+      // Stok hesaplama
+      switch (data.type) {
+        case 'IN':
+          newStock = previousStock + data.quantity
+          break
+        case 'OUT':
+          if (previousStock < data.quantity) {
+            throw new Error('Yetersiz stok')
+          }
+          newStock = previousStock - data.quantity
+          break
+        case 'ADJUSTMENT':
+          newStock = data.quantity
+          break
+      }
+
+      // Transaction ile stok güncelleme ve hareket kaydı
+      const result = await prisma.$transaction(async (tx: import('@prisma/client').Prisma.TransactionClient) => {
+        // Stok güncelleme
+        await tx.product.update({
+          where: { id: data.productId },
+          data: { stock: newStock }
+        })
+
+        // Stok hareketi kaydı
+        const stockMovement = await tx.stockMovement.create({
+          data: {
+            productId: data.productId,
+            type: data.type,
+            quantity: data.quantity,
+            previousStock,
+            newStock,
+            reason: data.reason,
+            reference: data.reference,
+            createdBy
+          },
+          include: {
+            product: true,
+            createdByUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
             }
           }
-        }
+        })
+
+        return stockMovement
       })
 
-      return stockMovement
-    })
-
-    return mapStockMovement(result)
+      return mapStockMovement(result)
+    } catch (err) {
+      console.error('Stok hareketi eklenirken hata:', err);
+      throw err;
+    }
   }
 
   async getStockMovements(productId?: string, page: number = 1, limit: number = 20) {

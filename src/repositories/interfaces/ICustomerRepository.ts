@@ -9,6 +9,7 @@ export interface CreateCustomerDTO {
   company?: string
   taxNumber?: string
   createdBy: number
+  isActive?: boolean
 }
 
 export interface UpdateCustomerDTO {

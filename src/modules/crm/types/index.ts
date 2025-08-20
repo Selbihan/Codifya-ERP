@@ -55,46 +55,7 @@ export interface CustomerListResponse {
   totalPages: number
 }
 
-export interface CustomerStats {
-  totalCustomers: number
-  activeCustomers: number
-  newCustomersThisMonth: number
-  topCustomers: Array<{
-    customer: Customer
-    totalOrders: number
-    totalSpent: number
-  }>
-  customerGrowth: Array<{
-    month: string
-    count: number
-  }>
-}
-
-export interface CustomerHistory {
-  orders: Array<{
-    id: string
-    orderNumber: string
-    status: string
-    totalAmount: number
-    orderDate: Date
-  }>
-  invoices: Array<{
-    id: string
-    invoiceNumber: string
-    status: string
-    amount: number
-    dueDate: Date
-  }>
-  payments: Array<{
-    id: string
-    amount: number
-    method: string
-    status: string
-    paymentDate: Date
-  }>
-}
-
-// Order ve Invoice tipleri (basit versiyonları)
+// Basit order ve invoice tipleri
 interface Order {
   id: string
   orderNumber: string
@@ -109,4 +70,4 @@ interface Invoice {
   status: string
   amount: number
   dueDate: Date
-} 
+}

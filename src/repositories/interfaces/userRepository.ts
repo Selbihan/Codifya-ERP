@@ -27,7 +27,7 @@ export interface UserFilters {
 export interface IUserRepository extends IBaseRepository<User, CreateUserDTO, UpdateUserDTO, UserFilters> {
   findByEmail(email: string): Promise<User | null>
   findByRole(role: UserRole): Promise<User[]>
-  updatePassword(id: string, hashedPassword: string): Promise<User>
-  deactivateUser(id: string): Promise<User>
-  activateUser(id: string): Promise<User>
+  updatePassword(id: number, hashedPassword: string): Promise<User>
+  deactivateUser(id: number): Promise<User>
+  activateUser(id: number): Promise<User>
 } 

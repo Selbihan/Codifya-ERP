@@ -49,9 +49,9 @@ export default function ProductsPage() {
   const productColumns: DataTableColumn<Product>[] = [
     { key: 'name', header: 'Ürün Adı', sortable: true },
     { key: 'sku', header: 'Stok Kodu (SKU)', sortable: true },
-    { key: 'price', header: 'Fiyat (₺)', sortable: true, align: 'right', accessor: p => p.price != null ? `${p.price} ₺` : '-' },
-    { key: 'stock', header: 'Stok Miktarı', sortable: true, align: 'right' },
-    { key: 'minStock', header: 'Minimum Stok', align: 'right' },
+    { key: 'price', header: 'Fiyat (₺)', sortable: true, align: 'left', accessor: p => p.price != null ? `${p.price} ₺` : '-' },
+    { key: 'stock', header: 'Stok Miktarı', sortable: true, align: 'left' },
+    { key: 'minStock', header: 'Minimum Stok', align: 'left' },
     { key: 'category', header: 'Kategori', accessor: p => p.category?.name || 'Kategori Yok' },
     { key: 'isActive', header: 'Durum', accessor: p => (
         <Badge variant={p.isActive ? 'success' : 'error'}>{p.isActive ? 'Aktif' : 'Pasif'}</Badge>
@@ -70,7 +70,9 @@ export default function ProductsPage() {
         limit: limit.toString()
       });
       if (search) params.append('search', search);
-      const res = await fetch(`/api/inventory/products?${params}`);
+      const res = await fetch(`/api/inventory/products?${params}`, {
+        credentials: 'include'
+      });
       const json = await res.json();
       if (!json.success || !json.data) throw new Error(json.error || 'Liste alınamadı');
       setData(json.data);

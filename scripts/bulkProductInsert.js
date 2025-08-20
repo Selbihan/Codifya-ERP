@@ -1,68 +1,44 @@
-const API_URL = 'http://localhost:3000/api/inventory/products'; // Gerekirse portu ve adresi değiştirin
-const LOGIN_URL = 'http://localhost:3000/api/auth/login';
-const FAKE_API = 'https://fakestoreapi.com/products';
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-const USERNAME = 'test1deneme';
-const PASSWORD = 'Test12345';
-
-async function loginAndGetCookie() {
-  const res = await fetch(LOGIN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ identifier: USERNAME, password: PASSWORD })
+async function main() {
+  // Kategoriler oluştur
+  const categories = await prisma.category.createMany({
+    data: [
+      { name: 'Elektronik', isActive: true },
+      { name: 'Ofis', isActive: true },
+      { name: 'Kırtasiye', isActive: true },
+      { name: 'Yazılım', isActive: true },
+      { name: 'Donanım', isActive: true }
+    ],
+    skipDuplicates: true
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error('Login failed: ' + text);
-  }
-  // Cookie header'ı al
-  const setCookie = res.headers.get('set-cookie');
-  if (!setCookie) throw new Error('Login cookie alınamadı!');
-  // Sadece token kısmını al
-  const tokenCookie = setCookie.split(';')[0];
-  return tokenCookie;
-}
 
-async function fetchFakeProducts() {
-  const res = await fetch(FAKE_API);
-  if (!res.ok) throw new Error('Fake Store API erişilemedi');
-  const products = await res.json();
-  return products;
-}
+  // Kategorileri tekrar çek (id'ler için)
+  const allCategories = await prisma.category.findMany();
 
-async function addProducts() {
-  try {
-    const cookie = await loginAndGetCookie();
-    const fakeProducts = await fetchFakeProducts();
-    for (const p of fakeProducts) {
-      const product = {
-        name: p.title,
-        description: p.description,
-        sku: 'SKU' + Math.floor(Math.random() * 1000000),
-        price: Math.round(Number(p.price)),
-        cost: Math.round(Number(p.price) * 0.7),
-        stock: Math.floor(Math.random() * 100) + 1,
-        minStock: Math.floor(Math.random() * 10) + 1,
-        categoryId: undefined // Gerekirse bir kategori ID'si ekleyin
-      };
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': cookie
-        },
-        body: JSON.stringify(product)
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        console.error(`Hata: ${text}`);
-      } else {
-        console.log(`Eklendi: ${product.name}`);
+  // 100 ürün oluştur
+  for (let i = 1; i <= 100; i++) {
+    const category = allCategories[Math.floor(Math.random() * allCategories.length)];
+    await prisma.product.create({
+      data: {
+        name: `Ürün ${i}`,
+        description: `Açıklama ${i}`,
+        sku: `SKU${i}`,
+        price: Math.floor(Math.random() * 1000) + 10,
+        cost: Math.floor(Math.random() * 500) + 5,
+        stock: Math.floor(Math.random() * 100),
+        minStock: 5,
+        isActive: true,
+        categoryId: category.id,
+        createdBy: 1 // Gerekirse mevcut bir user id kullanın
       }
-    }
-  } catch (err) {
-    console.error('Hata:', err.message);
+    });
   }
+
+  console.log('100 ürün ve kategoriler başarıyla eklendi!');
 }
 
-addProducts();
+main()
+  .catch(e => { console.error(e); process.exit(1); })
+  .finally(() => prisma.$disconnect());

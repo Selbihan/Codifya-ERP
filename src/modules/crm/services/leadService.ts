@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient, Prisma } from '@prisma/client'
 import { validateEmail, validatePhone } from '@/utils/validation'
 import { Lead, LeadStatus, LeadSource, CreateLeadInput, ConvertLeadResult } from '@/types'
 
@@ -94,7 +94,7 @@ export class LeadService {
     if (!lead) throw new Error('Lead bulunamadı')
     if (lead.convertedContactId) throw new Error('Lead zaten dönüştürülmüş')
 
-    return await this.prisma.$transaction(async tx => {
+  return await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       let accountId: string | undefined
 
       if (options?.createAccountIfMissing) {

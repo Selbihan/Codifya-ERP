@@ -117,9 +117,11 @@ export default function ActivitiesView() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
+        <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Aktiviteler</h1>
-          <p className="text-gray-600 text-sm">Görüşmeler, notlar ve görevler</p>
+          <Button onClick={() => setShowForm(s => !s)} className="ml-2">
+            {showForm ? 'Kapat' : '+Aktiviteler'}
+          </Button>
         </div>
         <div className="flex gap-2">
           <Input
@@ -128,9 +130,6 @@ export default function ActivitiesView() {
             onChange={e => setTypeFilter(e.target.value.toUpperCase())}
             className="w-56"
           />
-          <Button onClick={() => setShowForm(s => !s)}>
-            {showForm ? 'Kapat' : '+ Aktivite'}
-          </Button>
         </div>
       </div>
 
@@ -232,9 +231,9 @@ export default function ActivitiesView() {
 }
 
 const activityColumns: DataTableColumn<Activity>[] = [
-  { key: 'type', header: 'Tür', accessor: a => <span className="font-medium text-[11px]">{a.type}</span>, sortable: true },
-  { key: 'subject', header: 'Konu', accessor: a => <span className="text-xs">{a.subject}</span>, sortable: true },
-  { key: 'description', header: 'Açıklama', accessor: a => <span className="text-[11px] text-gray-600 max-w-[200px] truncate">{a.description || '-'}</span> },
-  { key: 'target', header: 'Hedef', accessor: a => <span className="text-[10px]">{a.targetEntityType}#{a.targetEntityId}</span> },
-  { key: 'createdAt', header: 'Oluşturma', accessor: a => <span className="text-[10px]">{new Date(a.createdAt).toLocaleString('tr-TR')}</span>, sortable: true },
+  { key: 'type', header: 'Tür', accessor: a => <span className="font-medium">{a.type}</span>, sortable: true, align: 'left' },
+  { key: 'subject', header: 'Konu', accessor: a => <span>{a.subject}</span>, sortable: true, align: 'left' },
+  { key: 'description', header: 'Açıklama', accessor: a => <span className="text-gray-600 max-w-[200px] truncate">{a.description || '-'}</span>, align: 'left' },
+  { key: 'target', header: 'Hedef', accessor: a => <span>{a.targetEntityType}#{a.targetEntityId}</span>, align: 'left' },
+  { key: 'createdAt', header: 'Oluşturma', accessor: a => <span>{new Date(a.createdAt).toLocaleString('tr-TR')}</span>, sortable: true, align: 'left' },
 ]

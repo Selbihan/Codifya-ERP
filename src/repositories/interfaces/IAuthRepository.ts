@@ -1,4 +1,4 @@
-import { PrismaClient } from "@/generated/prisma";
+import { PrismaClient } from "@prisma/client";
 import { RegisterRequest, UserRole } from "@/types/auth";
 
 // Prisma'dan dönen User tipini kullan

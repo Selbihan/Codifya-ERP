@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient } from '@prisma/client'
 import { BaseRepository } from '../base/baseRepository'
 import {
   IInvoiceRepository,
@@ -10,8 +10,31 @@ import {
   Invoice
 } from '../interfaces/invoiceRepository'
 
-export class InvoiceRepository extends BaseRepository<Invoice, CreateInvoiceDTO, UpdateInvoiceDTO, InvoiceFilters>
-  implements IInvoiceRepository {
+
+export class InvoiceRepository extends BaseRepository<Invoice, CreateInvoiceDTO, UpdateInvoiceDTO, InvoiceFilters> implements IInvoiceRepository {
+
+  private mapInvoice(data: any): Invoice {
+    if (!data) return data;
+    return {
+      id: data.id,
+      invoiceNumber: data.invoiceNumber,
+      orderId: data.orderId,
+      customerId: data.customerId,
+      type: data.type,
+      status: data.status,
+      subtotal: data.subtotal,
+      taxAmount: data.taxAmount,
+      discount: data.discount,
+      totalAmount: data.totalAmount,
+      dueDate: data.dueDate,
+      issueDate: data.issueDate,
+      paidDate: data.paidDate,
+      notes: data.notes ?? undefined,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+      createdBy: data.createdBy
+    } as Invoice;
+  }
 
   constructor(prisma: PrismaClient) {
     super(prisma, 'invoice')
@@ -50,23 +73,28 @@ export class InvoiceRepository extends BaseRepository<Invoice, CreateInvoiceDTO,
   }
 
   async findByInvoiceNumber(invoiceNumber: string): Promise<Invoice | null> {
-    return this.prisma.invoice.findUnique({ where: { invoiceNumber }, include: this.getIncludeRelations() })
+  const result = await this.prisma.invoice.findUnique({ where: { invoiceNumber }, include: this.getIncludeRelations() });
+  return this.mapInvoice(result);
   }
 
   async findByOrder(orderId: string): Promise<Invoice | null> {
-    return this.prisma.invoice.findFirst({ where: { orderId }, include: this.getIncludeRelations() })
+  const result = await this.prisma.invoice.findFirst({ where: { orderId }, include: this.getIncludeRelations() });
+  return this.mapInvoice(result);
   }
 
   async findByCustomer(customerId: string): Promise<Invoice[]> {
-    return this.prisma.invoice.findMany({ where: { customerId }, include: this.getIncludeRelations() })
+  const results = await this.prisma.invoice.findMany({ where: { customerId }, include: this.getIncludeRelations() });
+  return results.map(this.mapInvoice);
   }
 
   async findByStatus(status: InvoiceStatus): Promise<Invoice[]> {
-    return this.prisma.invoice.findMany({ where: { status }, include: this.getIncludeRelations() })
+  const results = await this.prisma.invoice.findMany({ where: { status }, include: this.getIncludeRelations() });
+  return results.map(this.mapInvoice);
   }
 
   async updateInvoiceStatus(id: string, status: InvoiceStatus): Promise<Invoice> {
-    return this.prisma.invoice.update({ where: { id }, data: { status }, include: this.getIncludeRelations() })
+  const result = await this.prisma.invoice.update({ where: { id }, data: { status }, include: this.getIncludeRelations() });
+  return this.mapInvoice(result);
   }
 
   async getInvoiceStats() {
@@ -76,9 +104,9 @@ export class InvoiceRepository extends BaseRepository<Invoice, CreateInvoiceDTO,
       this.prisma.invoice.count({ where: { status: 'SENT' } }),
       this.prisma.invoice.count({ where: { status: 'PAID' } }),
       this.prisma.invoice.count({ where: { status: 'CANCELLED' } }),
-      this.prisma.invoice.aggregate({ _sum: { totalAmount: true } }).then(res => res._sum.totalAmount || 0),
-      this.prisma.invoice.aggregate({ _sum: { totalAmount: true }, where: { status: 'PAID' } }).then(res => res._sum.totalAmount || 0),
-      this.prisma.invoice.aggregate({ _sum: { totalAmount: true }, where: { status: 'SENT' } }).then(res => res._sum.totalAmount || 0)
+      this.prisma.invoice.aggregate({ _sum: { totalAmount: true } }).then((res: any) => res._sum.totalAmount || 0),
+      this.prisma.invoice.aggregate({ _sum: { totalAmount: true }, where: { status: 'PAID' } }).then((res: any) => res._sum.totalAmount || 0),
+      this.prisma.invoice.aggregate({ _sum: { totalAmount: true }, where: { status: 'SENT' } }).then((res: any) => res._sum.totalAmount || 0)
     ])
     return {
       total,
@@ -93,18 +121,19 @@ export class InvoiceRepository extends BaseRepository<Invoice, CreateInvoiceDTO,
   }
 
   async getOverdueInvoices() {
-    const now = new Date()
-    return this.prisma.invoice.findMany({
+    const now = new Date();
+    const results = await this.prisma.invoice.findMany({
       where: {
         status: 'SENT',
         dueDate: { lt: now }
       },
       include: this.getIncludeRelations()
-    })
+    });
+    return results.map(this.mapInvoice);
   }
 
   async getInvoicesByDateRange(startDate: Date, endDate: Date) {
-    return this.prisma.invoice.findMany({
+    const results = await this.prisma.invoice.findMany({
       where: {
         issueDate: {
           gte: startDate,
@@ -112,6 +141,7 @@ export class InvoiceRepository extends BaseRepository<Invoice, CreateInvoiceDTO,
         }
       },
       include: this.getIncludeRelations()
-    })
+    });
+    return results.map(this.mapInvoice);
   }
 } 

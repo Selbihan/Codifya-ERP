@@ -79,7 +79,7 @@ export class OrderService {
       orderDate: new Date(),
       createdBy,
       items: req.items.map(i => {
-        const product = products.find(p => p.id === i.productId);
+        const product = products.find((p: any) => p.id === i.productId);
         return {
           productId: i.productId,
           quantity: i.quantity,

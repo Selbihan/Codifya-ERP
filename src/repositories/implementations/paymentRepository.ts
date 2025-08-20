@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient } from '@prisma/client'
 import { BaseRepository } from '../base/baseRepository'
 import {
   IPaymentRepository,
@@ -29,8 +29,7 @@ function mapOrder(prismaOrder: any): Order {
   return {
     id: prismaOrder.id,
     orderNumber: prismaOrder.orderNumber,
-    customerId: prismaOrder.customerId,
-    customer: undefined, // Payment için gerekli değil
+    customerId: prismaOrder.customerId, // Burada sadece customerId var
     status: prismaOrder.status,
     totalAmount: prismaOrder.totalAmount,
     taxAmount: prismaOrder.taxAmount,
@@ -40,27 +39,21 @@ function mapOrder(prismaOrder: any): Order {
     createdAt: prismaOrder.createdAt,
     updatedAt: prismaOrder.updatedAt,
     createdBy: prismaOrder.createdBy,
-    createdByUser: undefined, // Payment için gerekli değil
-    items: [],
-    payments: [],
-    invoices: [],
-  };
+  }
 }
 
-// Prisma'dan dönen veriyi Payment tipine uygun şekilde map'le
 function mapPayment(prismaPayment: any): Payment {
   return {
     id: prismaPayment.id,
     orderId: prismaPayment.orderId,
-    order: prismaPayment.order ? mapOrder(prismaPayment.order) : undefined,
     amount: prismaPayment.amount,
     method: prismaPayment.method,
     status: prismaPayment.status,
     reference: prismaPayment.reference,
     paymentDate: prismaPayment.paymentDate,
     createdAt: prismaPayment.createdAt,
-    updatedAt: prismaPayment.updatedAt,
-  };
+    updatedAt: prismaPayment.updatedAt
+  }
 }
 
 export class PaymentRepository extends BaseRepository<Payment, CreatePaymentDTO, UpdatePaymentDTO, PaymentFilters>
@@ -181,7 +174,7 @@ export class PaymentRepository extends BaseRepository<Payment, CreatePaymentDTO,
         select: {
           id: true,
           orderNumber: true,
-          customerId: true,
+          customerId: true, // customerId var, customer yok
           status: true,
           totalAmount: true,
           taxAmount: true,
@@ -195,6 +188,7 @@ export class PaymentRepository extends BaseRepository<Payment, CreatePaymentDTO,
       }
     }
   }
+
 
   protected buildWhereClause(filters?: PaymentFilters) {
     const where: any = {}
@@ -248,8 +242,8 @@ export class PaymentRepository extends BaseRepository<Payment, CreatePaymentDTO,
       this.prisma.payment.count({ where: { status: 'COMPLETED' } }),
       this.prisma.payment.count({ where: { status: 'FAILED' } }),
       this.prisma.payment.count({ where: { status: 'REFUNDED' } }),
-      this.prisma.payment.aggregate({ _sum: { amount: true } }).then(res => res._sum.amount || 0),
-      this.prisma.payment.aggregate({ _avg: { amount: true } }).then(res => res._avg.amount || 0)
+      this.prisma.payment.aggregate({ _sum: { amount: true } }).then((res: any) => res._sum.amount || 0),
+      this.prisma.payment.aggregate({ _avg: { amount: true } }).then((res: any) => res._avg.amount || 0)
     ])
     return {
       total,

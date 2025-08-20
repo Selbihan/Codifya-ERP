@@ -41,7 +41,7 @@ export class ProductController {
 
   async create(req: Request, res: Response) {
     try {
-      const createdBy = Number((req as any).user?.userId)
+      const createdBy = String((req as any).user?.userId)
       const product = await this.service.createProduct(req.body, createdBy)
       res.status(201).json(product)
     } catch (error: any) {

@@ -1,317 +1,280 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect, ChangeEvent, useCallback } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
-import { Button } from '../../../components/ui/button'
-import { Badge } from '../../../components/ui/badge'
-import { Input } from '../../../components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
-import { Pagination } from '../../../components/ui/pagination'
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Download,
-  Eye,
-  Edit,
-  Trash2
-} from 'lucide-react'
-import { Invoice, InvoiceStatus, InvoiceType, InvoiceFilters } from '../types'
+import React, { useState, useEffect } from "react";
+import { Modal } from "../../../components/ui/Modal";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
+import { DataTable } from "@/components/ui/data-table";
+import { Pagination } from "../../../components/ui/pagination";
+import { Plus, Search } from "lucide-react";
 
-interface InvoiceListProps {
-  invoices?: Invoice[]
-  total?: number
-  page?: number
-  limit?: number
-  loading?: boolean
-  onPageChange?: (page: number) => void
-  onFiltersChange?: (filters: InvoiceFilters) => void
-  onView?: (invoice: Invoice) => void
-  onEdit?: (invoice: Invoice) => void
-  onDelete?: (invoice: Invoice) => void
-  onCreate?: () => void
+// Dummy data and types for demonstration
+type InvoiceStatus = "draft" | "paid" | "cancelled";
+type InvoiceType = "sale" | "purchase";
+interface Invoice {
+  id: number;
+  number: string;
+  customer: string;
+  status: InvoiceStatus;
+  type: InvoiceType;
+  amount: number;
 }
-
-const statusColors: Record<InvoiceStatus, string> = {
-  DRAFT: 'bg-gray-100 text-gray-800',
-  SENT: 'bg-blue-100 text-blue-800',
-  PAID: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-red-100 text-red-800'
+interface InvoiceFilters {
+  page: number;
+  limit: number;
+  search?: string;
+  status?: InvoiceStatus | "";
+  type?: InvoiceType | "";
 }
 
 const statusLabels: Record<InvoiceStatus, string> = {
-  DRAFT: 'Taslak',
-  SENT: 'Gönderildi',
-  PAID: 'Ödendi',
-  CANCELLED: 'İptal'
-}
-
+  draft: "Taslak",
+  paid: "Ödendi",
+  cancelled: "İptal"
+};
 const typeLabels: Record<InvoiceType, string> = {
-  SALES: 'Satış',
-  PURCHASE: 'Alış',
-  EXPENSE: 'Gider'
-}
+  sale: "Satış",
+  purchase: "Alış"
+};
 
-export default function InvoiceList({
-  invoices = [],
-  total = 0,
-  page = 1,
-  limit = 10,
-  loading = false,
-  onPageChange,
-  onFiltersChange,
-  onView,
-  onEdit,
-  onDelete,
-  onCreate
-}: InvoiceListProps) {
-  const [filters, setFilters] = useState<InvoiceFilters>({
-    page: 1,
-    limit: 10
-  })
+import type { DataTableColumn } from "@/components/ui/data-table";
+const columns: DataTableColumn<Invoice>[] = [
+  { key: "number", header: "Fatura No", align: "left" },
+  { key: "customer", header: "Müşteri", align: "left" },
+  { key: "status", header: "Durum", align: "left" },
+  { key: "type", header: "Tür", align: "left" },
+  { key: "amount", header: "Tutar", align: "left" },
+];
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | ''>('')
-  const [typeFilter, setTypeFilter] = useState<InvoiceType | ''>('')
+const dummyInvoices: Invoice[] = [
+  { id: 1, number: "FTR-001", customer: "Acme Corp", status: "paid", type: "sale", amount: 1000 },
+  { id: 2, number: "FTR-002", customer: "Beta Ltd.", status: "draft", type: "purchase", amount: 500 },
+];
 
-  // Debounced search için
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [searchTerm])
+const InvoiceList = ({ onFiltersChange, onPageChange }: { onFiltersChange?: (filters: InvoiceFilters) => void; onPageChange?: (page: number) => void }) => {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    customer: "",
+    invoiceNumber: "",
+    date: "",
+    amount: "",
+    description: ""
+  });
+  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
 
   useEffect(() => {
-    const newFilters: InvoiceFilters = {
-      page: 1,
-      limit: 10
-    }
+    // Müşteri listesini çek
+    const fetchCustomers = async () => {
+      setCustomersLoading(true);
+      try {
+        const res = await fetch("/api/crm/customers?limit=1000");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data?.customers)) {
+          setCustomers(data.data.customers.map((c: any) => ({ id: c.id, name: c.name })));
+        }
+      } catch (e) {
+        setCustomers([]);
+      } finally {
+        setCustomersLoading(false);
+      }
+    };
+    fetchCustomers();
+  }, []);
+  const [formError, setFormError] = useState("");
+  const [formSuccess, setFormSuccess] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
 
-    if (debouncedSearchTerm) {
-      // Arama için customer name veya invoice number kullanılabilir
-      // Bu örnekte basit bir filtreleme yapıyoruz
-    }
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError("");
+    setFormSuccess("");
+    setFormLoading(true);
+    setTimeout(() => {
+      // Yeni fatura kaydını oluştur
+      const newInvoice = {
+        id: Date.now(),
+        number: form.invoiceNumber,
+        customer: customers.find(c => c.id === form.customer)?.name || "",
+        status: "draft" as InvoiceStatus,
+        type: "sale" as InvoiceType,
+        amount: Number(form.amount),
+      };
+      setInvoices(prev => [newInvoice, ...prev]);
+      setTotal(prev => prev + 1);
+      setFormLoading(false);
+      setFormSuccess("Fatura başarıyla oluşturuldu.");
+      setTimeout(() => {
+        setOpen(false);
+        setFormSuccess("");
+        setForm({ customer: "", invoiceNumber: "", date: "", amount: "", description: "" });
+      }, 1200);
+    }, 1000);
+  };
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
+  const [typeFilter, setTypeFilter] = useState<InvoiceType | "">("");
+  const [filters, setFilters] = useState<InvoiceFilters>({ page: 1, limit: 10 });
+  const [invoices, setInvoices] = useState<Invoice[]>(dummyInvoices);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(2);
+  const page = filters.page;
+  const limit = filters.limit;
 
-    if (statusFilter) {
-      newFilters.status = statusFilter
-    }
-
-    if (typeFilter) {
-      newFilters.type = typeFilter
-    }
-
-    setFilters(newFilters)
-    onFiltersChange?.(newFilters)
-  }, [debouncedSearchTerm, statusFilter, typeFilter, onFiltersChange])
-
-  const handlePageChange = useCallback((newPage: number) => {
-    const newFilters = { ...filters, page: newPage }
-    setFilters(newFilters)
-    onPageChange?.(newPage)
-    onFiltersChange?.(newFilters)
-  }, [filters, onPageChange, onFiltersChange])
-
-  const formatDate = useCallback((date: Date | string) => {
-    return new Date(date).toLocaleDateString('tr-TR')
-  }, [])
-
-  const formatCurrency = useCallback((amount: number) => {
-    return new Intl.NumberFormat('tr-TR', {
-      style: 'currency',
-      currency: 'TRY'
-    }).format(amount)
-  }, [])
-
-  const handleSearchChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value)
-  }, [])
-
-  const handleStatusChange = useCallback((value: string) => {
-    setStatusFilter(value as InvoiceStatus | '')
-  }, [])
-
-  const handleTypeChange = useCallback((value: string) => {
-    setTypeFilter(value as InvoiceType | '')
-  }, [])
-
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Faturalar</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center space-x-4">
-                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse" />
-                <div className="space-y-2 flex-1">
-                  <div className="h-4 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  // Dummy effect for demonstration
+  useEffect(() => {
+    // Burada API'den veri çekilebilir
+    setInvoices(dummyInvoices);
+    setTotal(dummyInvoices.length);
+  }, [filters]);
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Faturalar</CardTitle>
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Dışa Aktar
-            </Button>
-            <Button onClick={onCreate}>
-              <Plus className="h-4 w-4 mr-2" />
-              Yeni Fatura
-            </Button>
-          </div>
-        </div>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Faturalar</CardTitle>
+        <Button onClick={() => setOpen(true)} variant="primary" className="flex items-center gap-2 shadow-md">
+          <Plus className="h-4 w-4" />Yeni Fatura
+        </Button>
       </CardHeader>
       <CardContent>
-        {/* Filtreler */}
-        <div className="flex items-center space-x-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Fatura ara..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className="pl-10"
-              />
-            </div>
-          </div>
-          <Select value={statusFilter} onChange={handleStatusChange}>
-            <SelectTrigger className="w-40">
-              <SelectValue>Durum</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Tümü</SelectItem>
-              {Object.entries(statusLabels).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={typeFilter} onChange={handleTypeChange}>
-            <SelectTrigger className="w-40">
-              <SelectValue>Tür</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Tümü</SelectItem>
-              {Object.entries(typeLabels).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Tablo */}
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fatura No</TableHead>
-                <TableHead>Müşteri</TableHead>
-                <TableHead>Tür</TableHead>
-                <TableHead>Durum</TableHead>
-                <TableHead>Tutar</TableHead>
-                <TableHead>Vade Tarihi</TableHead>
-                <TableHead>İşlemler</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.length === 0 ? (
-                <TableRow>
-                  <TableCell className="text-center py-8 text-muted-foreground">
-                    Fatura bulunamadı
-                  </TableCell>
-                </TableRow>
-              ) : (
-                invoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">
-                      {invoice.invoiceNumber}
-                    </TableCell>
-                    <TableCell>
-                      {invoice.customer?.name || 'Bilinmeyen'}
-                    </TableCell>
-                    <TableCell>
-                      {typeLabels[invoice.type]}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={statusColors[invoice.status]}>
-                        {statusLabels[invoice.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(invoice.totalAmount)}
-                    </TableCell>
-                    <TableCell>
-                      {formatDate(invoice.dueDate)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onView?.(invoice)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onEdit?.(invoice)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onDelete?.(invoice)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Sayfalama */}
-        {total > limit && (
-          <div className="flex items-center justify-between mt-6">
-            <div className="text-sm text-muted-foreground">
-              {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} / {total} sonuç
-            </div>
-            <Pagination
-              currentPage={page}
-              totalPages={Math.ceil(total / limit)}
-              onPageChange={handlePageChange}
+        <div className="flex flex-1 gap-2 items-center bg-gray-50 rounded-lg p-3 shadow-sm mb-6">
+          <div className="relative w-full md:w-64">
+            <Input
+              placeholder="Fatura No, Müşteri..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 rounded-md border border-gray-200 focus:ring-2 focus:ring-blue-200"
             />
+            <Search className="absolute left-2 top-2.5 h-5 w-5 text-gray-400" />
           </div>
-        )}
+          <div className="relative">
+            <Select value={statusFilter} onChange={val => setStatusFilter(val as InvoiceStatus | "")}> 
+              <SelectTrigger className="w-36 bg-white border border-gray-200 rounded-md px-4 py-2 flex items-center justify-between cursor-pointer hover:border-blue-400 focus:ring-2 focus:ring-blue-200 transition">
+                <SelectValue>{statusFilter ? statusLabels[statusFilter as InvoiceStatus] : "Durum"}</SelectValue>
+                <svg className="ml-2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+              </SelectTrigger>
+              <SelectContent className="absolute left-0 mt-2 w-36 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                <SelectItem value="">Tümü</SelectItem>
+                {Object.entries(statusLabels).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="relative">
+            <Select value={typeFilter} onChange={val => setTypeFilter(val as InvoiceType | "")}> 
+              <SelectTrigger className="w-36 bg-white border border-gray-200 rounded-md px-4 py-2 flex items-center justify-between cursor-pointer hover:border-blue-400 focus:ring-2 focus:ring-blue-200 transition">
+                <SelectValue>{typeFilter ? typeLabels[typeFilter as InvoiceType] : "Tür"}</SelectValue>
+                <svg className="ml-2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+              </SelectTrigger>
+              <SelectContent className="absolute left-0 mt-2 w-36 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                <SelectItem value="">Tümü</SelectItem>
+                {Object.entries(typeLabels).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="primary" className="ml-2 flex items-center gap-2" onClick={() => {
+            const newFilters: InvoiceFilters = {
+              page: 1,
+              limit: 10
+            };
+            if (searchTerm) newFilters.search = searchTerm;
+            if (statusFilter) newFilters.status = statusFilter;
+            if (typeFilter) newFilters.type = typeFilter;
+            setFilters(newFilters);
+            onFiltersChange?.(newFilters);
+          }}>
+            <Search className="h-4 w-4" /> Ara
+          </Button>
+        </div>
+
+        {/* Modal: Yeni Fatura */}
+        <Modal
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Yeni Fatura"
+          footer={null}
+        >
+          <form onSubmit={handleFormSubmit} className="space-y-4 p-2">
+            <label className="block">
+              <span className="text-gray-900">Müşteri</span>
+              <Select
+                value={form.customer}
+                onChange={val => setForm(f => ({ ...f, customer: val as string }))}
+              >
+                <SelectTrigger className="block w-full p-2 border rounded bg-white">
+                  <SelectValue>{
+                    customersLoading
+                      ? "Yükleniyor..."
+                      : (customers.find(c => c.id === form.customer)?.name || "Müşteri seçin")
+                  }</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="block">
+              <span className="text-gray-900">Fatura No</span>
+              <input type="text" name="invoiceNumber" value={form.invoiceNumber} onChange={handleFormChange} className="block w-full p-2 border rounded" required />
+            </label>
+            <label className="block">
+              <span className="text-gray-900">Tarih</span>
+              <input type="date" name="date" value={form.date} onChange={handleFormChange} className="block w-full p-2 border rounded" required />
+            </label>
+            <label className="block">
+              <span className="text-gray-900">Tutar</span>
+              <input type="number" name="amount" value={form.amount} onChange={handleFormChange} className="block w-full p-2 border rounded" required min="0" step="0.01" />
+            </label>
+            <label className="block">
+              <span className="text-gray-900">Açıklama</span>
+              <textarea name="description" value={form.description} onChange={handleFormChange} className="block w-full p-2 border rounded" rows={2} />
+            </label>
+            {formError && <div className="text-red-600 mb-2 text-sm">{formError}</div>}
+            {formSuccess && <div className="text-green-600 mb-2 text-sm">{formSuccess}</div>}
+            <div className="flex justify-end gap-2 mt-4">
+              <Button onClick={() => setOpen(false)} variant="secondary" type="button">Vazgeç</Button>
+              <Button variant="primary" type="submit" disabled={formLoading}>{formLoading ? "Oluşturuluyor..." : "Fatura Oluştur"}</Button>
+            </div>
+          </form>
+        </Modal>
+
+        <DataTable
+          columns={columns}
+          data={invoices}
+          loading={loading}
+          pagination={{
+            page,
+            pageSize: limit,
+            total,
+            onPageChange: (newPage) => {
+              setFilters(f => ({ ...f, page: newPage }))
+              onPageChange?.(newPage)
+              onFiltersChange?.({ ...filters, page: newPage })
+            }
+          }}
+        />
+        <Pagination
+          currentPage={page}
+          totalPages={Math.ceil(total / limit)}
+          onPageChange={(newPage) => {
+            setFilters(f => ({ ...f, page: newPage }))
+            onPageChange?.(newPage)
+            onFiltersChange?.({ ...filters, page: newPage })
+          }}
+        />
       </CardContent>
     </Card>
-  )
-} 
+  );
+};
+
+export default InvoiceList;

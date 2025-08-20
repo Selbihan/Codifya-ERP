@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient } from '@prisma/client'
 import { UserRepository } from './implementations/userRepository'
 import { CustomerRepository } from './implementations/customerRepository'
 import { IUserRepository, ICustomerRepository } from './interfaces'

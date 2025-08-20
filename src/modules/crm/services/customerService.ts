@@ -2,8 +2,10 @@ import { validateEmail, validatePhone, validateTaxNumber, ValidationError } from
 import { CustomerRepository } from '@/repositories/implementations/customerRepository'
 import { ICustomerRepository } from '@/repositories/interfaces/ICustomerRepository'
 import { Logger } from '@/utils/logger'
-import { prisma } from '@/lib/prisma'
+import { PrismaClient } from '@prisma/client' 
 import { Customer } from '@/types'
+import { prisma } from '@/lib/prisma'
+
 
 // Basit error sınıfları
 export class NotFoundError extends Error {
@@ -95,19 +97,20 @@ export class CustomerService implements ICustomerService {
     const normalized = this.normalize(data)
     this.validate(normalized)
     await this.ensureEmailUnique(normalized.email)
-    
-    // createdBy Int alanı: runtime tip uyumsuzluğu hatasını önlemek için parse
+    console.log('normalized:', normalized, userId)
     const createdByInt = parseInt(userId as any)
+
     const created = await this.repo.create({
       name: normalized.name!,
-      email: normalized.email,
-      phone: normalized.phone,
-      address: normalized.address,
-      company: normalized.company,
-      taxNumber: normalized.taxNumber,
-      createdBy: Number.isFinite(createdByInt) ? createdByInt : 0
+      email: normalized.email ?? undefined,
+      phone: normalized.phone ?? undefined,
+      address: normalized.address ?? undefined,
+      company: normalized.company ?? undefined,
+      taxNumber: normalized.taxNumber ?? undefined,
+      isActive: true, // Yeni müşteri varsayılan olarak aktif
+      createdBy: createdByInt,
     })
-
+console.log('created:', created)
     this.logger.info('Customer created', { id: created.id, userId })
     return this.mapToDomain(created)
   }
@@ -122,8 +125,18 @@ export class CustomerService implements ICustomerService {
     const normalized = this.normalize(data)
     this.validate(normalized, { isUpdate: true })
     if (normalized.email) await this.ensureEmailUnique(normalized.email, id)
-    
-    const updated = await this.repo.update(id, normalized as any)
+
+    const updateData: UpdateCustomerInput = {
+      name: normalized.name ?? undefined,
+      email: normalized.email ?? undefined,
+      phone: normalized.phone ?? undefined,
+      address: normalized.address ?? undefined,
+      company: normalized.company ?? undefined,
+      taxNumber: normalized.taxNumber ?? undefined,
+      ...(typeof (normalized as UpdateCustomerInput).isActive !== 'undefined' && { isActive: (normalized as UpdateCustomerInput).isActive }),
+    }
+
+    const updated = await this.repo.update(id, updateData)
     this.logger.info('Customer updated', { id })
     return this.mapToDomain(updated)
   }

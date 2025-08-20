@@ -28,7 +28,7 @@ export default function LoginPage() {
         router.push('/dashboard');
       } else {
         const errorData = await response.json();
-        setLoginError(errorData.error || 'Giriş başarısız!');
+        setLoginError(errorData.message || errorData.error || 'Giriş başarısız!');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -72,6 +72,7 @@ export default function LoginPage() {
             <p className="mt-1 text-sm text-red-500">{String(errors.username.message)}</p>
           )}
         </label>
+  {/* Şifremi Unuttum linki, kayıt ol satırının hemen üstüne taşındı */}
 
         <label className="block mb-4">
           <span className="text-gray-900">
@@ -134,6 +135,11 @@ export default function LoginPage() {
         </button>
 
         <div className="text-center mt-4">
+          <div className="mb-2">
+            <Link href="/forgot-password" className="text-blue-600 hover:underline text-sm">
+              Şifremi Unuttum?
+            </Link>
+          </div>
           <span className="text-sm text-gray-600">
             Hesabınız yok mu?{' '}
             <button

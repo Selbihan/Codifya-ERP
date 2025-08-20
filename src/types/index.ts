@@ -177,7 +177,7 @@ export interface Invoice {
   dueDate: Date
   issueDate: Date
   paidDate?: Date | null
-  notes?: string | null
+  notes: string | null
   createdAt: Date
   updatedAt: Date
   createdBy: number

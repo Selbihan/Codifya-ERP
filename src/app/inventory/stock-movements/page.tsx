@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from 'react';
+import { IoClose } from 'react-icons/io5';
 import { Card } from '@/components/ui/card';
+import { DataTable, DataTableColumn } from '@/components/ui/data-table';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 // Stok hareketi tipi
@@ -25,6 +27,23 @@ interface Product {
   sku: string;
 }
 
+
+const stockMovementColumns: DataTableColumn<StockMovement>[] = [
+  {
+    key: 'product',
+    header: 'Ürün',
+    accessor: (row) => row.product?.name || '-',
+  },
+  { key: 'type', header: 'Tip' },
+  { key: 'quantity', header: 'Miktar', align: 'left' },
+  { key: 'previousStock', header: 'Önceki Stok', align: 'left' },
+  { key: 'newStock', header: 'Yeni Stok', align: 'left' },
+  { key: 'reason', header: 'Açıklama' },
+  { key: 'reference', header: 'Referans', accessor: row => row.reference || '-' },
+  { key: 'createdBy', header: 'Oluşturan' },
+  { key: 'createdAt', header: 'Tarih', accessor: row => new Date(row.createdAt).toLocaleString('tr-TR') },
+];
+
 export default function StockMovementsPage() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,21 +53,21 @@ export default function StockMovementsPage() {
   const [form, setForm] = useState({ productId: '', type: 'IN', quantity: 1, reason: '' });
   const [submitting, setSubmitting] = useState(false);
 
+  const fetchMovements = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/inventory/stock-movements');
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Stok hareketleri alınamadı');
+      setMovements(json.data.movements);
+    } catch (e: any) {
+      setError(e.message || 'Hata');
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
-    const fetchMovements = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch('/api/inventory/stock-movements');
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || 'Stok hareketleri alınamadı');
-  setMovements(json.data.movements);
-      } catch (e: any) {
-        setError(e.message || 'Hata');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchMovements();
   }, []);
 
@@ -79,10 +98,8 @@ export default function StockMovementsPage() {
       if (!json.success) throw new Error(json.error || 'Stok hareketi eklenemedi');
       setForm({ productId: '', type: 'IN', quantity: 1, reason: '' });
       setShowNewForm(false);
-      // Yeniden listele
-      const res2 = await fetch('/api/inventory/stock-movements');
-      const json2 = await res2.json();
-  if (json2.success) setMovements(json2.data.movements);
+      // Tüm hareketleri tekrar çek
+      fetchMovements();
     } catch (e) {
       // Hata gösterilebilir
     } finally {
@@ -96,12 +113,23 @@ export default function StockMovementsPage() {
         <Card>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">Stok Hareketleri</h2>
-            <button
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-              onClick={() => setShowNewForm(s => !s)}
-            >
-              {showNewForm ? 'Kapat' : '+ Yeni Stok Hareketi'}
-            </button>
+            {showNewForm ? (
+              <button
+                type="button"
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-100 group transition"
+                onClick={() => setShowNewForm(false)}
+                aria-label="Kapat"
+              >
+                <IoClose className="w-5 h-5 text-gray-500 group-hover:text-red-600 transition" />
+              </button>
+            ) : (
+              <button
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                onClick={() => setShowNewForm(true)}
+              >
+                + Yeni Stok Hareketi
+              </button>
+            )}
           </div>
           {showNewForm && (
             <form onSubmit={handleCreate} className="mb-6 flex gap-4 items-end flex-wrap">
@@ -165,42 +193,13 @@ export default function StockMovementsPage() {
           ) : error ? (
             <div className="p-8 text-center text-red-500">{error}</div>
           ) : (
-            <table className="min-w-full bg-white border border-gray-200 rounded">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2 border-b text-left">Ürün</th>
-                  <th className="px-4 py-2 border-b text-left">Tip</th>
-                  <th className="px-4 py-2 border-b text-right">Miktar</th>
-                  <th className="px-4 py-2 border-b text-right">Önceki Stok</th>
-                  <th className="px-4 py-2 border-b text-right">Yeni Stok</th>
-                  <th className="px-4 py-2 border-b text-left">Açıklama</th>
-                  <th className="px-4 py-2 border-b text-left">Referans</th>
-                  <th className="px-4 py-2 border-b text-left">Oluşturan</th>
-                  <th className="px-4 py-2 border-b text-left">Tarih</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movements.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-gray-400">Stok hareketi bulunamadı</td>
-                  </tr>
-                ) : (
-                  movements.map(mv => (
-                    <tr key={mv.id}>
-                      <td className="px-4 py-2 border-b">{mv.product?.name || '-'}</td>
-                      <td className="px-4 py-2 border-b">{mv.type}</td>
-                      <td className="px-4 py-2 border-b text-right">{mv.quantity}</td>
-                      <td className="px-4 py-2 border-b text-right">{mv.previousStock}</td>
-                      <td className="px-4 py-2 border-b text-right">{mv.newStock}</td>
-                      <td className="px-4 py-2 border-b">{mv.reason}</td>
-                      <td className="px-4 py-2 border-b">{mv.reference || '-'}</td>
-                      <td className="px-4 py-2 border-b">{mv.createdBy}</td>
-                      <td className="px-4 py-2 border-b">{new Date(mv.createdAt).toLocaleString('tr-TR')}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <DataTable
+              columns={stockMovementColumns}
+              data={movements}
+              emptyMessage="Stok hareketi bulunamadı"
+              striped
+              compact
+            />
           )}
         </Card>
       </div>

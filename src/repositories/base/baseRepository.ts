@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient } from '@prisma/client'
 import { IBaseRepository } from '../interfaces/baseRepository'
 
 export abstract class BaseRepository<T, CreateDTO = Partial<T>, UpdateDTO = Partial<T>, Filters = any> 

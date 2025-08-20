@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient } from '@prisma/client'
 import { BaseRepository } from '../base/baseRepository'
 import { 
   IUserRepository, 
@@ -76,7 +76,7 @@ export class UserRepository extends BaseRepository<User, CreateUserDTO, UpdateUs
     }
   }
 
-  async updatePassword(id: string, hashedPassword: string): Promise<User> {
+  async updatePassword(id: number, hashedPassword: string): Promise<User> {
     try {
       const user = await this.prisma.user.update({
         where: { id },
@@ -89,7 +89,7 @@ export class UserRepository extends BaseRepository<User, CreateUserDTO, UpdateUs
     }
   }
 
-  async deactivateUser(id: string): Promise<User> {
+  async deactivateUser(id: number): Promise<User> {
     try {
       const user = await this.prisma.user.update({
         where: { id },
@@ -102,7 +102,7 @@ export class UserRepository extends BaseRepository<User, CreateUserDTO, UpdateUs
     }
   }
 
-  async activateUser(id: string): Promise<User> {
+  async activateUser(id: number): Promise<User> {
     try {
       const user = await this.prisma.user.update({
         where: { id },

@@ -87,7 +87,6 @@ export function OrderList({ orders, onEdit, onDelete, onViewHistory, onUpdateSta
       sortable: true,
       align: 'left',
       accessor: (o) => {
-        // İndirim öncesi ürün fiyatı*adet toplamı
         const itemsTotal = Array.isArray(o.items)
           ? o.items.reduce((sum, item) => sum + ((item.product?.price || 0) * (item.quantity || 0)), 0)
           : 0;
@@ -113,7 +112,6 @@ export function OrderList({ orders, onEdit, onDelete, onViewHistory, onUpdateSta
       header: 'Ödenecek Tutar',
       align: 'left',
       accessor: (o) => {
-        // Ürünlerin fiyat*adet toplamı - indirim
         const itemsTotal = Array.isArray(o.items)
           ? o.items.reduce((sum, item) => sum + ((item.product?.price || 0) * (item.quantity || 0)), 0)
           : 0;
@@ -141,11 +139,13 @@ export function OrderList({ orders, onEdit, onDelete, onViewHistory, onUpdateSta
       key: 'orderDate',
       header: 'Tarih',
       sortable: true,
+      align: 'left',
       accessor: (o) => new Date(o.orderDate).toLocaleDateString('tr-TR')
     },
     {
       key: 'actions',
       header: 'İşlemler',
+      align: 'left',
       accessor: (o) => (
         <>
           <button

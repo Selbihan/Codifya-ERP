@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { DataTable, DataTableColumn } from '@/components/ui/data-table';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 type Category = {
@@ -13,19 +14,22 @@ type Category = {
 };
 
 export default function CategoriesPage() {
-
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Array<Category & { _count?: { products: number } }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [form, setForm] = useState({ name: '', description: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', description: '' });
 
   const fetchCategories = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/inventory/categories');
+      const res = await fetch('/api/inventory/categories', {
+        credentials: 'include'
+      });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Kategori listesi alınamadı');
       setCategories(json.data);
@@ -35,7 +39,6 @@ export default function CategoriesPage() {
       setLoading(false);
     }
   };
-
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,8 +78,6 @@ export default function CategoriesPage() {
     }
   };
 
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', description: '' });
   const handleEdit = (cat: Category) => {
     setEditId(cat.id);
     setEditForm({ name: cat.name, description: cat.description || '' });
@@ -155,54 +156,21 @@ export default function CategoriesPage() {
           ) : error ? (
             <div className="p-8 text-center text-red-500">{error}</div>
           ) : (
-            <table className="min-w-full bg-white border border-gray-200 rounded">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2 border-b text-left">Kategori Adı</th>
-                  <th className="px-4 py-2 border-b text-left">Açıklama</th>
-                  <th className="px-4 py-2 border-b text-left">Ürün Sayısı</th>
-                  <th className="px-4 py-2 border-b text-left">Durum</th>
-                  <th className="px-4 py-2 border-b text-left">Oluşturulma Tarihi</th>
-                  <th className="px-4 py-2 border-b text-left">İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-gray-400">Kategori bulunamadı</td>
-                  </tr>
-                ) : (
-                  categories.map(cat => (
-                    <tr key={cat.id}>
-                      <td className="px-4 py-2 border-b">{editId === cat.id ? (
-                        <input className="border px-2 py-1 rounded w-32" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-                      ) : cat.name}</td>
-                      <td className="px-4 py-2 border-b">{editId === cat.id ? (
-                        <input className="border px-2 py-1 rounded w-32" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
-                      ) : (cat.description || '-')}</td>
-                      <td className="px-4 py-2 border-b text-center">{cat._count?.products ?? 0}</td>
-                      <td className="px-4 py-2 border-b">
-                        <span className={`inline-block px-2 py-1 rounded ${cat.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{cat.isActive ? 'Aktif' : 'Pasif'}</span>
-                      </td>
-                      <td className="px-4 py-2 border-b">{new Date(cat.createdAt).toLocaleDateString('tr-TR')}</td>
-                      <td className="px-4 py-2 border-b">
-                        {editId === cat.id ? (
-                          <>
-                            <button className="text-green-600 hover:underline mr-2" onClick={handleEditSave} disabled={submitting}>Kaydet</button>
-                            <button className="text-gray-600 hover:underline" onClick={() => setEditId(null)}>Vazgeç</button>
-                          </>
-                        ) : (
-                          <>
-                            <button className="text-blue-600 hover:underline mr-2" onClick={() => handleEdit(cat)}>Düzenle</button>
-                            <button className="text-red-600 hover:underline" onClick={() => handleDelete(cat.id)}>Sil</button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <DataTable
+              columns={[
+                { key: 'name', header: 'Kategori Adı' },
+                { key: 'description', header: 'Açıklama', accessor: row => row.description || '-' },
+                { key: '_count', header: 'Ürün Sayısı', accessor: row => row._count?.products ?? 0, align: 'center' },
+                { key: 'isActive', header: 'Durum', accessor: row => (
+                  <span className={`inline-block px-2 py-1 rounded ${row.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200'}`}>{row.isActive ? 'Aktif' : 'Pasif'}</span>
+                ) },
+                { key: 'createdAt', header: 'Oluşturulma Tarihi', accessor: row => new Date(row.createdAt).toLocaleDateString('tr-TR') },
+              ]}
+              data={categories}
+              emptyMessage="Kategori bulunamadı"
+              striped
+              compact
+            />
           )}
         </Card>
       </div>

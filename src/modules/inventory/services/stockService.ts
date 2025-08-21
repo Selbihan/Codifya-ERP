@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { CreateStockMovementRequest, StockMovement } from '../types'
-import { PrismaClient } from '@prisma/client'
 import { Product, User } from '@/types'
 
 function mapUser(user: any): User {

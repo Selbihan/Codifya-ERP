@@ -1,6 +1,91 @@
-'use client'
 
+'use client';
 import React, { useState, useEffect } from 'react';
+
+
+// ...existing code...
+
+// EditPaymentForm fonksiyonu dosya sonunda olmalı
+function EditPaymentForm({ payment, orders, onSave, onCancel }: any) {
+  const [form, setForm] = useState({
+    orderId: payment.orderId,
+    amount: payment.amount,
+    method: payment.method,
+    status: payment.status,
+    reference: payment.reference || '',
+    paymentDate: payment.paymentDate ? new Date(payment.paymentDate).toISOString().slice(0, 10) : ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    await onSave({ ...form, amount: Number(form.amount) });
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <label className="block">
+        <span className="text-gray-900">Sipariş</span>
+        <select
+          name="orderId"
+          value={form.orderId}
+          onChange={handleChange}
+          className="block w-full p-2 border rounded bg-white"
+          required
+        >
+          <option value="">Sipariş seçin</option>
+          {orders.map((o: any) => (
+            <option key={o.id} value={o.id}>{o.orderNumber} - {o.customer}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-gray-900">Tutar</span>
+        <Input type="number" name="amount" value={form.amount} onChange={handleChange} className="block w-full p-2 border rounded" required min="0" step="0.01" />
+      </label>
+      <label className="block">
+        <span className="text-gray-900">Yöntem</span>
+        <select name="method" value={form.method} onChange={handleChange} className="block w-full p-2 border rounded" required>
+          <option value="CASH">Nakit</option>
+          <option value="CREDIT_CARD">Kredi Kartı</option>
+          <option value="BANK_TRANSFER">Banka Transferi</option>
+          <option value="CHECK">Çek</option>
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-gray-900">Durum</span>
+        <select name="status" value={form.status} onChange={handleChange} className="block w-full p-2 border rounded" required>
+          <option value="PENDING">Bekliyor</option>
+          <option value="COMPLETED">Tamamlandı</option>
+          <option value="FAILED">Başarısız</option>
+          <option value="REFUNDED">İade</option>
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-gray-900">Tarih</span>
+        <Input type="date" name="paymentDate" value={form.paymentDate} onChange={handleChange} className="block w-full p-2 border rounded" required />
+      </label>
+      <label className="block">
+        <span className="text-gray-900">Referans</span>
+        <Input type="text" name="reference" value={form.reference} onChange={handleChange} className="block w-full p-2 border rounded" />
+      </label>
+      <div className="flex justify-end gap-2 mt-4">
+        <Button onClick={onCancel} variant="secondary" type="button">Vazgeç</Button>
+        <Button variant="primary" type="submit" disabled={loading}>{loading ? "Kaydediliyor..." : "Kaydet"}</Button>
+      </div>
+    </form>
+  );
+}
+
+
+import { fetchOrders } from '@/utils/fetchOrders';
 import { Input } from '../../../components/ui/input';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
@@ -41,15 +126,32 @@ export default function PaymentList(props: PaymentListProps) {
   // Tabloyu güncellemek için payments ve setPayments state'i ekle
   const [payments, setPayments] = useState<Payment[]>(props.payments || []);
 
+  // Tüm ödemeleri yeni endpointten çek
+  useEffect(() => {
+    fetch('/api/accounting/all-payments')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data?.data)) setPayments(data.data);
+        else setPayments([]);
+      });
+  }, []);
+
   const [open, setOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   // Ödeme formu için state
   const [form, setForm] = useState({
     customer: '',
+    orderId: '',
     amount: '',
     method: '',
     date: '',
     description: ''
   });
+  // Siparişler için state
+  const [orders, setOrders] = useState<{ id: string; orderNumber: string; customer: string }[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [formLoading, setFormLoading] = useState(false);
@@ -60,6 +162,7 @@ export default function PaymentList(props: PaymentListProps) {
   useEffect(() => {
     if (!open) return;
     setCustomersLoading(true);
+    setOrdersLoading(true);
     fetch('/api/crm/customers?limit=1000')
       .then(res => res.json())
       .then(data => {
@@ -71,6 +174,11 @@ export default function PaymentList(props: PaymentListProps) {
       })
       .catch(() => setCustomers([]))
       .finally(() => setCustomersLoading(false));
+    // Siparişleri çek
+    fetchOrders().then((orders) => {
+      setOrders(orders);
+      setOrdersLoading(false);
+    });
   }, [open]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -123,15 +231,38 @@ export default function PaymentList(props: PaymentListProps) {
   };
 
   // Yardımcı fonksiyonlar (sadece bir kez tanımlanmalı)
-  // Yardımcı fonksiyonlar (sadece bir kez tanımlanmalı)
-  const formatDate = (date: Date | string) => new Date(date).toLocaleDateString('tr-TR');
-  const formatCurrency = (amount: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
+  const formatDate = (date: Date | string | undefined) => {
+    if (!date) return '-';
+    const d = new Date(date);
+    return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('tr-TR');
+  };
+  const formatCurrency = (amount: number | undefined) => {
+    if (typeof amount !== 'number' || isNaN(amount)) return '-';
+    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
+  };
+  // Kısa gösterim için yardımcı fonksiyonlar
+  const shortOrderId = (id: string | undefined) => id ? id.substring(0, 6) : '-';
+  const shortReference = (ref: string | null | undefined) => ref ? ref.substring(0, 8) : '-';
+
+  // İşlemler butonları için fallback fonksiyonlar
+  const handleView = (payment: Payment) => {
+    setSelectedPayment(payment);
+    setViewModalOpen(true);
+  };
+  const handleEdit = (payment: Payment) => {
+    setSelectedPayment(payment);
+    setEditModalOpen(true);
+  };
+  const handleDelete = (payment: Payment) => {
+    if (onDelete) onDelete(payment);
+    else alert('Sil fonksiyonu tanımlı değil.');
+  };
 
   const columns: DataTableColumn<Payment>[] = [
     {
       key: 'orderId',
       header: 'Sipariş No',
-      accessor: (row: Payment) => row.orderId,
+      accessor: (row: Payment) => shortOrderId(row.orderId),
       align: 'left'
     },
     {
@@ -168,7 +299,7 @@ export default function PaymentList(props: PaymentListProps) {
     {
       key: 'reference',
       header: 'Referans',
-      accessor: (row: Payment) => row.reference || '-',
+      accessor: (row: Payment) => shortReference(row.reference),
       align: 'left'
     },
     {
@@ -176,18 +307,18 @@ export default function PaymentList(props: PaymentListProps) {
       header: 'İşlemler',
       accessor: (row: Payment) => (
         <div className="flex items-center space-x-2">
-          <button onClick={() => onView?.(row)} className="text-blue-600 hover:text-blue-700 p-1">
+          <button onClick={() => handleView(row)} className="text-blue-600 hover:text-blue-700 p-1">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
           </button>
-          <button onClick={() => onEdit?.(row)} className="text-green-600 hover:text-green-700 p-1">
+          <button onClick={() => handleEdit(row)} className="text-green-600 hover:text-green-700 p-1">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
-          <button onClick={() => onDelete?.(row)} className="text-red-600 hover:text-red-700 p-1">
+          <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-700 p-1">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
@@ -284,10 +415,14 @@ export default function PaymentList(props: PaymentListProps) {
               setFormError("");
               setFormSuccess("");
               setFormLoading(true);
-              // orderId zorunlu, örnek olarak ilk orderId veya sabit bir değer kullanılabilir
-              const orderId = payments[0]?.orderId || "1";
+              // orderId zorunlu, formdan alınacak
+              if (!form.orderId) {
+                setFormError('Sipariş seçmelisiniz.');
+                setFormLoading(false);
+                return;
+              }
               try {
-                const res = await fetch(`/api/orders/${orderId}/payments`, {
+                const res = await fetch(`/api/orders/${form.orderId}/payments`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -303,7 +438,7 @@ export default function PaymentList(props: PaymentListProps) {
                   setTimeout(() => {
                     setOpen(false);
                     setFormSuccess("");
-                    setForm({ customer: '', amount: '', method: '', date: '', description: '' });
+                    setForm({ customer: '', orderId: '', amount: '', method: '', date: '', description: '' });
                   }, 1200);
                 } else {
                   setFormError(data.message || "Kayıt başarısız.");
@@ -333,6 +468,24 @@ export default function PaymentList(props: PaymentListProps) {
                     ))}
                   </SelectContent>
                 </Select>
+              </label>
+              <label className="block">
+                <span className="text-gray-900">Sipariş</span>
+                <select
+                  name="orderId"
+                  value={form.orderId}
+                  onChange={e => setForm(f => ({ ...f, orderId: e.target.value }))}
+                  className="block w-full p-2 border rounded bg-white"
+                  required
+                  disabled={ordersLoading}
+                >
+                  <option value="">Sipariş seçin</option>
+                  {orders.map(o => (
+                    <option key={o.id} value={o.id}>
+                      {o.orderNumber} - {o.customer}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="block">
                 <span className="text-gray-900">Tutar</span>
@@ -370,6 +523,48 @@ export default function PaymentList(props: PaymentListProps) {
           </Modal>
 
           <DataTable columns={columns} data={payments} striped compact />
+
+          {/* Görüntüle Modalı */}
+          <Modal open={viewModalOpen} onClose={() => setViewModalOpen(false)} title="Ödeme Detayı">
+            {selectedPayment ? (
+              <div className="space-y-2">
+                <div><b>Sipariş No:</b> {shortOrderId(selectedPayment.orderId)}</div>
+                <div><b>Tarih:</b> {formatDate(selectedPayment.paymentDate)}</div>
+                <div><b>Yöntem:</b> {methodLabels[selectedPayment.method]}</div>
+                <div><b>Durum:</b> {selectedPayment.status}</div>
+                <div><b>Tutar:</b> {formatCurrency(selectedPayment.amount)}</div>
+                <div><b>Referans:</b> {shortReference(selectedPayment.reference)}</div>
+              </div>
+            ) : null}
+          </Modal>
+
+          {/* Düzenle Modalı */}
+
+          <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Ödeme Düzenle">
+            {selectedPayment ? (
+              <EditPaymentForm
+                payment={selectedPayment}
+                orders={orders}
+                onSave={async (updated: any) => {
+                  const res = await fetch(`/api/accounting/payments/${selectedPayment.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updated)
+                  });
+                  if (res.ok) {
+                    setEditModalOpen(false);
+                    setPayments(payments => payments.map(p => p.id === selectedPayment.id ? { ...p, ...updated } : p));
+                  } else {
+                    alert('Güncelleme başarısız!');
+                  }
+                }}
+                onCancel={() => setEditModalOpen(false)}
+              />
+            ) : null}
+          </Modal>
+
+
+// EditPaymentForm bileşeni dosya sonunda tanımlanıyor
           {/* Sayfalama */}
           {total > limit && (
             <div className="flex items-center justify-between mt-6">
@@ -513,7 +708,7 @@ export default function PaymentList(props: PaymentListProps) {
                 payments.map((payment) => (
                   <tr key={payment.id} className="border-b hover:bg-gray-50">
                     <td className="py-3 px-4 font-medium">
-                      {payment.orderId}
+                      {shortOrderId(payment.orderId)}
                     </td>
                     <td className="py-3 px-4">
                       {formatDate(payment.paymentDate)}
@@ -533,12 +728,12 @@ export default function PaymentList(props: PaymentListProps) {
                       {formatCurrency(payment.amount)}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-500">
-                      {payment.reference || '-'}
+                      {shortReference(payment.reference)}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => onView?.(payment)}
+                          onClick={() => handleView(payment)}
                           className="text-blue-600 hover:text-blue-700 p-1"
                         >
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -547,7 +742,7 @@ export default function PaymentList(props: PaymentListProps) {
                           </svg>
                         </button>
                         <button
-                          onClick={() => onEdit?.(payment)}
+                          onClick={() => handleEdit(payment)}
                           className="text-green-600 hover:text-green-700 p-1"
                         >
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -555,7 +750,7 @@ export default function PaymentList(props: PaymentListProps) {
                           </svg>
                         </button>
                         <button
-                          onClick={() => onDelete?.(payment)}
+                          onClick={() => handleDelete(payment)}
                           className="text-red-600 hover:text-red-700 p-1"
                         >
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,0 +1,29 @@
+  /* PDF, Excel ve Yazdır butonlarını yazdırmada gizle */
+  .print-hide, .print-hide * {
+    display: none !important;
+  }
+/* Sadece rapor başlığı ve aktif tablo yazdırılsın, diğer UI elemanları gizlensin */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area, .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute !important;
+    left: 0; top: 0; width: 100vw;
+    background: #fff !important;
+    color: #222 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Tablo başlığı her sayfada tekrar görünsün */
+  .print-area table thead { display: table-header-group !important; }
+  /* Satırlar bölünmesin */
+  .print-area table tr { page-break-inside: avoid !important; }
+  /* Geniş tabloyu yatay yazdırmak için */
+  @page { size: landscape; }
+}

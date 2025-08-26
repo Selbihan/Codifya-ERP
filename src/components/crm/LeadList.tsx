@@ -1,4 +1,7 @@
-'use client'
+
+'use client';
+'use client';
+import { ConvertLeadForm } from './ConvertLeadForm';
 
 import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
@@ -25,6 +28,9 @@ interface LeadListData {
 }
 
 export function LeadList() {
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [showConvertModal, setShowConvertModal] = useState(false)
   const [data, setData] = useState<LeadListData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -113,14 +119,44 @@ export function LeadList() {
   { key: 'createdAt', header: 'Kayıt Tarihi', sortable: true, accessor: l => new Date(l.createdAt).toLocaleDateString('tr-TR'), align: 'left' },
   { key: 'actions', header: 'İşlemler', accessor: l => (
       <div className="flex gap-1 items-center">
-        <Button size="sm" variant="ghost">Görüntüle</Button>
-        <Button size="sm" variant="ghost">Dönüştür</Button>
+        <Button size="sm" variant="ghost" onClick={() => { setSelectedLead(l); setShowDetailModal(true); }}>Görüntüle</Button>
+        <Button size="sm" variant="ghost" onClick={() => { setSelectedLead(l); setShowConvertModal(true); }}>Dönüştür</Button>
       </div>
     ) }
   ]
 
   return (
     <div className="space-y-6">
+      {/* Lead Detay Modalı */}
+      {showDetailModal && selectedLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+            <button onClick={() => setShowDetailModal(false)} className="absolute top-2 right-2 text-xl text-gray-400 hover:text-red-500">×</button>
+            <h3 className="text-lg font-bold mb-4">Lead Detayı</h3>
+            <div className="space-y-2">
+              <div><b>İsim:</b> {selectedLead.name}</div>
+              <div><b>Email:</b> {selectedLead.email || '-'}</div>
+              <div><b>Telefon:</b> {selectedLead.phone || '-'}</div>
+              <div><b>Kaynak:</b> {getSourceBadge(selectedLead.source)}</div>
+              <div><b>Durum:</b> {getStatusBadge(selectedLead.status)}</div>
+              <div><b>Kayıt Tarihi:</b> {new Date(selectedLead.createdAt).toLocaleString('tr-TR')}</div>
+              <div><b>Sahip Kullanıcı ID:</b> {selectedLead.ownerUserId}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lead Dönüştür Modalı */}
+      {showConvertModal && selectedLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+            <button onClick={() => setShowConvertModal(false)} className="absolute top-2 right-2 text-xl text-gray-400 hover:text-red-500">×</button>
+            <h3 className="text-lg font-bold mb-4">Lead Dönüştür</h3>
+            <div className="mb-4">Lütfen dönüştürmek istediğiniz tipi seçin:</div>
+            <ConvertLeadForm leadId={selectedLead.id} onClose={() => setShowConvertModal(false)} />
+          </div>
+        </div>
+      )}
       {/* Başlık ve Arama */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold">Potansiyel Müşteriler (Leads)</h2>
@@ -164,7 +200,8 @@ export function LeadList() {
                 setCreating(false)
               }
             }}
-            className="grid grid-cols-1 md:grid-cols-4 gap-4"
+            className="grid grid-cols-1 md:grid-cols-4 gap-4 min-h-[120px]"
+            style={{ minHeight: 120 }}
           >
             <div>
               <label className="block text-xs font-medium mb-1">İsim *</label>
@@ -180,20 +217,22 @@ export function LeadList() {
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Kaynak</label>
-              <Select
-                value={newLead.source}
-                onChange={(val) => setNewLead(l => ({ ...l, source: val }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="WEB">WEB</SelectItem>
-                  <SelectItem value="EVENT">EVENT</SelectItem>
-                  <SelectItem value="REFERRAL">REFERRAL</SelectItem>
-                  <SelectItem value="OTHER">OTHER</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="min-w-full">
+                <Select
+                  value={newLead.source}
+                  onChange={(val) => setNewLead(l => ({ ...l, source: val }))}
+                >
+                  <SelectTrigger className="min-w-full block">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WEB">WEB</SelectItem>
+                    <SelectItem value="EVENT">EVENT</SelectItem>
+                    <SelectItem value="REFERRAL">REFERRAL</SelectItem>
+                    <SelectItem value="OTHER">OTHER</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="md:col-span-4 flex gap-2 pt-2">
               <Button type="submit" disabled={creating}>{creating ? 'Kaydediliyor...' : 'Kaydet'}</Button>

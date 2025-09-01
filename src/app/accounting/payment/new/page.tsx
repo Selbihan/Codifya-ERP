@@ -1,60 +1,32 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function NewPaymentPage() {
   const [form, setForm] = useState({
-    orderId: "",
+    customer: "",
+    date: "",
     amount: "",
     method: "",
     description: ""
   });
-  const [orders, setOrders] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
-
-  useEffect(() => {
-    // Sipariş listesini çek
-    fetch("/api/orders/report")
-      .then(res => res.json())
-      .then(data => setOrders(data.orders || []));
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
     setLoading(true);
-    if (!form.orderId) {
-      setError("Lütfen bir sipariş seçin.");
+    // TODO: API entegrasyonu
+    setTimeout(() => {
       setLoading(false);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/orders/${form.orderId}/payments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: form.amount,
-          method: form.method,
-          reference: form.description
-        })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setError(data.message || "Ödeme kaydedilemedi.");
-      } else {
-        setSuccess("Ödeme başarıyla kaydedildi.");
-        setForm({ orderId: "", amount: "", method: "", description: "" });
-      }
-    } catch (err) {
-      setError("Sunucu hatası. Lütfen tekrar deneyin.");
-    }
-    setLoading(false);
+      setSuccess("Ödeme başarıyla kaydedildi.");
+    }, 1000);
   };
 
   return (
@@ -62,22 +34,13 @@ export default function NewPaymentPage() {
       <h2 className="text-2xl font-bold mb-4 text-center">Yeni Ödeme</h2>
       <form onSubmit={handleSubmit}>
         <label className="block mb-4">
-          <span className="text-gray-900">Sipariş</span>
-          <select name="orderId" value={form.orderId} onChange={handleChange} className="block w-full p-2 border rounded" required>
-            <option value="">Sipariş seçin</option>
-            {orders.map((order) => (
-              <option key={order.id} value={order.id}>
-                {order.orderNumber} - {order.customer} - {order.amount}₺
-              </option>
-            ))}
-          </select>
+          <span className="text-gray-900">Müşteri</span>
+          <input type="text" name="customer" value={form.customer} onChange={handleChange} className="block w-full p-2 border rounded" required />
         </label>
-        {/*
         <label className="block mb-4">
           <span className="text-gray-900">Tarih</span>
           <input type="date" name="date" value={form.date} onChange={handleChange} className="block w-full p-2 border rounded" required />
         </label>
-        */}
         <label className="block mb-4">
           <span className="text-gray-900">Tutar</span>
           <input type="number" name="amount" value={form.amount} onChange={handleChange} className="block w-full p-2 border rounded" required min="0" step="0.01" />

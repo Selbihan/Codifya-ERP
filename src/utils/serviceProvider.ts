@@ -3,7 +3,7 @@ import { CustomerService } from '@/modules/crm/services/customerService'
 
 export class ServiceProvider {
   static getAuthService(): AuthService {
-    return AuthService.create() as AuthService
+    return new AuthService()
   }
 
   static getCustomerService(): CustomerService {

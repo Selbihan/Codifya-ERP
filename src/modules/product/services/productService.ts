@@ -282,7 +282,7 @@ export class ProductService implements IProductService {
         },
         orderBy: { createdAt: 'desc' }
       })
-      const low = all.filter(p => (p.stock || 0) <= (p.minStock || 0))
+      const low = all.filter((p: any) => (p.stock || 0) <= (p.minStock || 0))
       const total = low.length
       const paged = low.slice(skip, skip + limit)
       const products = paged.map(mapProduct)
@@ -314,7 +314,7 @@ export class ProductService implements IProductService {
       include: { category: true },
       orderBy: { stock: 'asc' }
     })
-    const low = products.filter(p => (p.stock || 0) <= (p.minStock || 0))
+    const low = products.filter((p: any) => (p.stock || 0) <= (p.minStock || 0))
     return low.map(mapProduct)
   }
 
@@ -346,8 +346,8 @@ export class ProductService implements IProductService {
       prisma.product.findMany({ select: { price: true, stock: true, minStock: true } })
     ])
 
-    const lowStock = all.filter(p => (p.stock || 0) <= (p.minStock || 0)).length
-    const totalValue = all.reduce((sum, p) => sum + (p.price || 0) * (p.stock || 0), 0)
+    const lowStock = all.filter((p: any) => (p.stock || 0) <= (p.minStock || 0)).length
+    const totalValue = all.reduce((sum: number, p: any) => sum + (p.price || 0) * (p.stock || 0), 0)
 
     return {
       total,

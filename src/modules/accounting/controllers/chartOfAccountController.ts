@@ -1,18 +1,21 @@
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const body = await req.json();
-  const updated = await service.update(params.id, body);
-  return NextResponse.json(updated);
-}
-
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  await service.delete(params.id);
-  return NextResponse.json({ success: true });
-}
 import { NextRequest, NextResponse } from "next/server";
 import { ChartOfAccountService } from "../services/chartOfAccountService";
 import { ChartOfAccountRepository } from "../../../repositories/implementations/chartOfAccountRepository";
 
 const service = new ChartOfAccountService(new ChartOfAccountRepository());
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const body = await req.json();
+  const updated = await service.update(id, body);
+  return NextResponse.json(updated);
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  await service.delete(id);
+  return NextResponse.json({ success: true });
+}
 
 export async function GET() {
   const data = await service.list();

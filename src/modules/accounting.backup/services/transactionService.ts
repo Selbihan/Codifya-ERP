@@ -25,7 +25,7 @@ export class TransactionService {
         invoiceId: data.invoiceId,
         orderId: data.orderId,
         paymentId: data.paymentId,
-        createdBy
+        createdBy: parseInt(createdBy.toString())
       },
       include: {
         invoice: true,
@@ -121,8 +121,14 @@ export class TransactionService {
       orderBy: { date: 'desc' }
     })
     
+    // CreatedBy'ı string'e çevir
+    const formattedTransactions = transactions.map((t: any) => ({
+      ...t,
+      createdBy: t.createdBy.toString()
+    }))
+    
     return {
-      transactions,
+      transactions: formattedTransactions,
       total,
       page,
       limit,
@@ -175,29 +181,27 @@ export class TransactionService {
     })
     
     // Aylık gelir/gider/kar
-    const monthlyArr = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT strftime('%Y-%m', date) as month,
+    const monthlyArr = await (prisma.$queryRawUnsafe as any)(`SELECT strftime('%Y-%m', date) as month,
         SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as expense,
         SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) - SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as profit
       FROM transactions
       GROUP BY month
-      ORDER BY month DESC`
-    )
+      ORDER BY month DESC`) as any[];
     
     // Sonuçları uygun formata getir
     const incomeByCategory: Record<TransactionCategory, number> = {
       SALES: 0, PURCHASE: 0, SALARY: 0, RENT: 0, UTILITIES: 0, MARKETING: 0, OTHER: 0
     }
     for (const item of incomeByCategoryArr) {
-      incomeByCategory[item.category] = Number(item._sum.amount) || 0
+      incomeByCategory[item.category as TransactionCategory] = Number(item._sum.amount) || 0
     }
     
     const expenseByCategory: Record<TransactionCategory, number> = {
       SALES: 0, PURCHASE: 0, SALARY: 0, RENT: 0, UTILITIES: 0, MARKETING: 0, OTHER: 0
     }
     for (const item of expenseByCategoryArr) {
-      expenseByCategory[item.category] = Number(item._sum.amount) || 0
+      expenseByCategory[item.category as TransactionCategory] = Number(item._sum.amount) || 0
     }
     
     return {
@@ -206,7 +210,7 @@ export class TransactionService {
       netProfit: (Number(totalIncome._sum.amount) || 0) - (Number(totalExpense._sum.amount) || 0),
       incomeByCategory,
       expenseByCategory,
-      monthlyData: monthlyArr.map(m => ({
+      monthlyData: monthlyArr.map((m: any) => ({
         month: m.month,
         income: Number(m.income),
         expense: Number(m.expense),
@@ -246,16 +250,14 @@ export class TransactionService {
     })
 
     // Aylık işlemler
-    const monthlyTransactions = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT strftime('%Y-%m', date) as month,
+    const monthlyTransactions = await (prisma.$queryRawUnsafe as any)(`SELECT strftime('%Y-%m', date) as month,
         SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as expenses,
         SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) - SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as profit
       FROM transactions
       GROUP BY month
       ORDER BY month DESC
-      LIMIT 12`
-    )
+      LIMIT 12`) as any[];
 
     // Kategori bazında sonuçları formatla
     const incomeByCategory: Record<string, number> = {}
@@ -275,7 +277,7 @@ export class TransactionService {
       netProfit: (Number(totalIncome._sum.amount) || 0) - (Number(totalExpenses._sum.amount) || 0),
       incomeByCategory,
       expenseByCategory,
-      monthlyTransactions: monthlyTransactions.map(m => ({
+      monthlyTransactions: monthlyTransactions.map((m: any) => ({
         month: m.month,
         income: Number(m.income),
         expenses: Number(m.expenses),

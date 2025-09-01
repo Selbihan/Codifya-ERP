@@ -22,7 +22,7 @@ export class StockMovementService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return movements.map(mv => ({ ...mv, reference: mv.reference ?? undefined, createdBy: String(mv.createdBy) }));
+    return movements.map((mv: any) => ({ ...mv, reference: mv.reference ?? undefined, createdBy: String(mv.createdBy) }));
   }
 
   async createStockMovement(data: any): Promise<StockMovementListItem> {

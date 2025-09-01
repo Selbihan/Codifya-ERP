@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -40,7 +40,7 @@ export default function ActivitiesView() {
   const [entityOptions, setEntityOptions] = useState<{ id: string; name: string }[]>([])
   const [formError, setFormError] = useState<string | null>(null)
 
-  const fetchActivities = async () => {
+  const fetchActivities = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
@@ -55,9 +55,9 @@ export default function ActivitiesView() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [typeFilter])
 
-  useEffect(() => { fetchActivities() }, [typeFilter])
+  useEffect(() => { fetchActivities() }, [fetchActivities])
 
   // URL'den leadId geldiyse formu otomatik aç ve doldur
   useEffect(() => {

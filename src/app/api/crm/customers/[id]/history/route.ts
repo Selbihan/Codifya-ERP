@@ -4,11 +4,12 @@ import { CustomerService } from '@/modules/crm/services/customerService'
 // GET /api/crm/customers/[id]/history - Müşteri geçmişi
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const customerService = CustomerService.create()
-    const history = await customerService.history(params.id)
+    const history = await customerService.history(id)
     
     return NextResponse.json({
       success: true,

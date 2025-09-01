@@ -14,7 +14,7 @@ export class PaymentService {
     if (!order) throw new Error('Sipariş bulunamadı')
 
     // Toplam ödeme kontrolü
-    const totalPaid = order.payments.reduce((sum, payment) => {
+    const totalPaid = order.payments.reduce((sum: number, payment: any) => {
       return payment.status === 'COMPLETED' ? sum + payment.amount : sum
     }, 0)
     
@@ -64,7 +64,7 @@ export class PaymentService {
       })
       
       if (order) {
-        const totalPaid = order.payments.reduce((sum, p) => {
+        const totalPaid = order.payments.reduce((sum: number, p: any) => {
           return p.status === 'COMPLETED' && p.id !== id ? sum + p.amount : sum
         }, 0)
         
@@ -217,12 +217,12 @@ export class PaymentService {
     
     if (!order) throw new Error('Sipariş bulunamadı')
 
-    const totalPaid = order.payments.reduce((sum, payment) => {
+    const totalPaid = order.payments.reduce((sum: number, payment: any) => {
       return payment.status === 'COMPLETED' ? sum + payment.amount : sum
     }, 0)
 
-    const pendingPayments = order.payments.filter(p => p.status === 'PENDING')
-    const completedPayments = order.payments.filter(p => p.status === 'COMPLETED')
+    const pendingPayments = order.payments.filter((p: any) => p.status === 'PENDING')
+    const completedPayments = order.payments.filter((p: any) => p.status === 'COMPLETED')
 
     return {
       orderTotal: order.totalAmount,
@@ -275,7 +275,7 @@ export class PaymentService {
       totalAmount: totalAmount._sum.amount || 0,
       completedAmount: completedAmount._sum.amount || 0,
       pendingAmount: pendingAmount._sum.amount || 0,
-      paymentMethods: paymentMethods.map(pm => ({
+      paymentMethods: paymentMethods.map((pm: any) => ({
         method: pm.method,
         count: pm._count.method,
         total: Number(pm._sum.amount) || 0

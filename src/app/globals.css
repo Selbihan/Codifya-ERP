@@ -55,6 +55,16 @@
   --color-input-border-focus: var(--color-primary);
   --color-input-text: var(--color-text);
   --color-input-placeholder: var(--color-text-soft);
+
+  /* Status colors for light theme */
+  --color-success: #059669;
+  --color-success-bg: #ecfdf5;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+  --color-info: #2563eb;
+  --color-info-bg: #eff6ff;
 }
 
 /* Karanlık Tema */
@@ -78,27 +88,37 @@
   --color-background: #0f172a;
   --color-background-alt: #1e293b;
   --color-surface: #1e293b;
-  --color-surface-alt: #24324a;
-  --color-border: #334155;
-  --color-border-strong: #475569;
+  --color-surface-alt: #334155;
+  --color-border: #475569;
+  --color-border-strong: #64748b;
   --color-ring: #3b82f6;
 
   /* Kontrast iyileştirmesi */
-  --color-text: #fafcff;           /* Biraz daha parlak ana metin */
-  --color-text-muted: #cbd5e1;     /* Öncekine göre daha belirgin muted */
-  --color-text-soft: #94a3b8;      /* Soft ton hafif açıldı */
+  --color-text: #f8fafc;           
+  --color-text-muted: #cbd5e1;     
+  --color-text-soft: #94a3b8;      
 
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.6);
-  --shadow-md: 0 4px 12px -2px rgba(0,0,0,0.5);
-  --shadow-lg: 0 10px 24px -4px rgba(0,0,0,0.55);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.8);
+  --shadow-md: 0 4px 12px -2px rgba(0,0,0,0.7);
+  --shadow-lg: 0 10px 24px -4px rgba(0,0,0,0.75);
 
   /* Dark form override */
   --color-input-bg: var(--color-surface);
-  --color-input-bg-alt: #2b3a51;
-  --color-input-border: #3b4b60;
+  --color-input-bg-alt: #334155;
+  --color-input-border: #475569;
   --color-input-border-focus: var(--color-primary);
   --color-input-text: var(--color-text);
   --color-input-placeholder: var(--color-text-soft);
+
+  /* Status colors for dark theme */
+  --color-success: #10b981;
+  --color-success-bg: rgba(16, 185, 129, 0.1);
+  --color-warning: #f59e0b;
+  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-error: #ef4444;
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-info: #3b82f6;
+  --color-info-bg: rgba(59, 130, 246, 0.1);
 }
 
 html { font-family: Arial, Helvetica, sans-serif; }
@@ -156,6 +176,21 @@ body {
 /* Tema Geçişi */
 * { transition: background-color var(--transition-slow) ease, color var(--transition-base) ease, border-color var(--transition-base) ease; }
 
+/* High Contrast Mode */
+:root.high-contrast {
+  --color-text: #000000;
+  --color-text-muted: #333333;
+  --color-border: #000000;
+  --color-border-strong: #000000;
+}
+
+:root.dark.high-contrast {
+  --color-text: #ffffff;
+  --color-text-muted: #cccccc;
+  --color-border: #ffffff;
+  --color-border-strong: #ffffff;
+}
+
 /* -------------------------------------------------- */
 /* Form Kontrolleri (input, select, textarea, custom)  */
 /* -------------------------------------------------- */
@@ -198,3 +233,8 @@ select.form-field { padding-right: 2rem; }
 .select-dropdown { background: var(--color-surface); border: 1px solid var(--color-input-border); }
 .select-item { cursor: pointer; }
 .select-item:hover { background: var(--color-input-bg-alt); }
+
+/* Table row hover effect */
+.table-row-hover:hover {
+  background-color: var(--color-surface-alt);
+}

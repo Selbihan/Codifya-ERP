@@ -3,7 +3,7 @@
 'use client';
 import { ConvertLeadForm } from './ConvertLeadForm';
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,11 +39,7 @@ export function LeadList() {
   const [newLead, setNewLead] = useState({ name: '', email: '', phone: '', source: 'WEB' })
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    fetchLeads()
-  }, [search])
-
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
@@ -66,7 +62,11 @@ export function LeadList() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [search])
+
+  useEffect(() => {
+    fetchLeads()
+  }, [fetchLeads])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()

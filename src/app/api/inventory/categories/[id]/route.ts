@@ -6,9 +6,9 @@ import { requireManager, AuthenticatedRequest } from '@/lib/auth';
 const categoryService = new CategoryService();
 
 // DELETE - Kategori silme
-async function handleDelete(request: AuthenticatedRequest, { params }: { params: { id: string } }) {
+async function handleDelete(request: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
     if (!id) return errorResponse('ID zorunlu', 400);
     await categoryService.deleteCategory(id);
     return successResponse(true, 'Kategori silindi');
@@ -21,9 +21,9 @@ async function handleDelete(request: AuthenticatedRequest, { params }: { params:
 }
 
 // PATCH - Kategori güncelleme
-async function handlePatch(request: AuthenticatedRequest, { params }: { params: { id: string } }) {
+async function handlePatch(request: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
     if (!id) return errorResponse('ID zorunlu', 400);
     const body = await request.json();
     const updated = await categoryService.updateCategory(id, body);
@@ -36,9 +36,9 @@ async function handlePatch(request: AuthenticatedRequest, { params }: { params: 
   }
 }
 
-export async function DELETE(request: AuthenticatedRequest, ctx: { params: { id: string } }) {
+export async function DELETE(request: AuthenticatedRequest, ctx: { params: Promise<{ id: string }> }) {
   return requireManager((req) => handleDelete(req, ctx))(request);
 }
-export async function PATCH(request: AuthenticatedRequest, ctx: { params: { id: string } }) {
+export async function PATCH(request: AuthenticatedRequest, ctx: { params: Promise<{ id: string }> }) {
   return requireManager((req) => handlePatch(req, ctx))(request);
 }

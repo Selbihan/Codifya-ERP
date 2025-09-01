@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 // ThemeToggle kaldırıldı
@@ -72,6 +72,8 @@ export default function Navigation({ collapsed: collapsedProp, setCollapsed: set
   const [expandedItems, setExpandedItems] = useState<string[]>([])
   const [internalCollapsed, setInternalCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+
   const collapsed = collapsedProp !== undefined ? collapsedProp : internalCollapsed
   const setCollapsed = (v: boolean | ((p: boolean) => boolean)) => {
     if (setCollapsedProp) {
@@ -110,6 +112,33 @@ export default function Navigation({ collapsed: collapsedProp, setCollapsed: set
     )
   }
 
+  // Arama filtresi - search term'e göre navigationItems'ı filtrele
+  const filteredNavigationItems = useMemo(() => {
+    if (!searchTerm.trim()) return navigationItems
+
+    const searchLower = searchTerm.toLowerCase()
+    return navigationItems.filter(item => {
+      // Ana menü öğesi arama terimini içeriyorsa
+      if (item.name.toLowerCase().includes(searchLower)) return true
+      
+      // Alt menü öğelerinden herhangi biri arama terimini içeriyorsa
+      if (item.children?.some(child => child.name.toLowerCase().includes(searchLower))) return true
+      
+      return false
+    }).map(item => {
+      // Eğer ana menü eşleşmiyorsa, sadece eşleşen alt menüleri göster
+      if (!item.name.toLowerCase().includes(searchLower) && item.children) {
+        return {
+          ...item,
+          children: item.children.filter(child => 
+            child.name.toLowerCase().includes(searchLower)
+          )
+        }
+      }
+      return item
+    })
+  }, [searchTerm])
+
   return (
     <nav
       className={`relative group h-full min-h-screen transition-all duration-300 ${
@@ -146,13 +175,15 @@ export default function Navigation({ collapsed: collapsedProp, setCollapsed: set
             <input
               type="text"
               placeholder="Ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-alt)] text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
             />
           </div>
         )}
         {/* Navigation Items */}
         <div className="flex-1 space-y-2">
-          {navigationItems.map(item => {
+          {filteredNavigationItems.map(item => {
             const active = isActive(item.href)
             const expanded = isExpanded(item.name)
             return (

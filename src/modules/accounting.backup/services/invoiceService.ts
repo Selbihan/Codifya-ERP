@@ -27,7 +27,7 @@ export class InvoiceService {
         totalAmount,
         dueDate: data.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 gün sonra
         notes: data.notes,
-        createdBy
+        createdBy: parseInt(createdBy.toString())
       },
       include: {
         order: {
@@ -184,7 +184,7 @@ export class InvoiceService {
     })
 
     // Tip dönüşümü - Prisma verilerini Invoice tipine uygun hale getir
-    const invoices: Invoice[] = rawInvoices.map(invoice => ({
+    const invoices: Invoice[] = rawInvoices.map((invoice: any) => ({
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       orderId: invoice.orderId,
@@ -202,7 +202,7 @@ export class InvoiceService {
       notes: invoice.notes || undefined, // null -> undefined
       createdAt: invoice.createdAt,
       updatedAt: invoice.updatedAt,
-      createdBy: invoice.createdBy,
+      createdBy: invoice.createdBy.toString(),
       createdByUser: invoice.createdByUser
     }))
 

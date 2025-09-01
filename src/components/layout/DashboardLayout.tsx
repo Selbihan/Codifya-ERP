@@ -4,8 +4,10 @@ import React from 'react'
 import { useAuthContext } from '@/context/AuthContext'
 import { useRouter } from 'next/navigation'
 import Navigation from './Navigation'
-import { ThemeProvider } from '@/components/theme/ThemeProvider'
+import { useTheme } from '@/components/theme/ThemeProvider'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import NotificationDropdown from './NotificationDropdown'
+import SettingsDropdown from './SettingsDropdown'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -21,8 +23,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     router.push('/login')
   }
   return (
-    <ThemeProvider>
-      <div className="flex min-h-screen bg-[var(--color-background)] text-[var(--color-text)]">
+    <div className="flex min-h-screen bg-[var(--color-background)] text-[var(--color-text)]">
         {/* Sol Navigation Panel */}
         <div className="fixed left-0 top-0 h-full z-20 border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm transition-all duration-300">
           <Navigation collapsed={collapsed} setCollapsed={setCollapsed} />
@@ -47,13 +48,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               {/* Header Sağ Kısım */}
               <div className="flex items-center gap-3">
                 <ThemeToggle />
-                <button className="relative p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)] transition">
-                  <span className="text-lg">🔔</span>
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center shadow">3</span>
-                </button>
-                <button className="p-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)] transition">
-                  <span className="text-lg">⚙️</span>
-                </button>
+                <NotificationDropdown />
+                <SettingsDropdown />
                 <button onClick={handleLogout} className="px-4 h-9 inline-flex items-center text-sm rounded-xl bg-red-500/10 text-red-600 hover:bg-red-500/15 border border-red-500/20">
                   Çıkış
                 </button>
@@ -79,6 +75,5 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </footer>
         </div>
       </div>
-    </ThemeProvider>
   )
 }

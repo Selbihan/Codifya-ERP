@@ -563,8 +563,7 @@ export default function PaymentList(props: PaymentListProps) {
             ) : null}
           </Modal>
 
-
-// EditPaymentForm bileşeni dosya sonunda tanımlanıyor
+          {/* EditPaymentForm bileşeni dosya sonunda tanımlanıyor */}
           {/* Sayfalama */}
           {total > limit && (
             <div className="flex items-center justify-between mt-6">

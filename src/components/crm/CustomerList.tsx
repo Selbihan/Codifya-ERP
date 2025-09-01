@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,11 +37,7 @@ export function CustomerList() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [modalMode, setModalMode] = useState<'view' | 'edit' | null>(null)
 
-  useEffect(() => {
-    fetchCustomers()
-  }, [search, currentPage])
-
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
@@ -64,7 +60,11 @@ export function CustomerList() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [search, currentPage])
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [fetchCustomers])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()

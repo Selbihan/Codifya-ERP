@@ -71,3 +71,26 @@ interface Invoice {
   amount: number
   dueDate: Date
 }
+
+export interface CustomerStats {
+  totalCustomers: number
+  activeCustomers: number
+  inactiveCustomers: number
+  newCustomersThisMonth: number
+  totalOrders?: number
+  totalRevenue?: number
+  topCustomers: Array<{
+    customer: {
+      id: string
+      name: string
+      company?: string
+    }
+    totalOrders: number
+    totalRevenue: number
+    totalSpent: number
+  }>
+  customerGrowth: Array<{
+    month: string
+    count: number
+  }>
+}

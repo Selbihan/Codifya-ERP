@@ -45,7 +45,7 @@ async function handlePost(request: AuthenticatedRequest) {
       return errorResponse('Kullanıcı doğrulanamadı', 401)
     }
     
-    const movement = await stockService.addStockMovement(body, createdBy)
+    const movement = await stockService.addStockMovement(body, parseInt(createdBy.toString()))
     return successResponse(movement, 'Stok hareketi başarıyla kaydedildi')
   } catch (error) {
     if (error instanceof Error) {

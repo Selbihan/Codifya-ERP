@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 // /api/crm/leads/[leadId]/convert/route.ts
-export async function POST(req: NextRequest, { params }: { params: { leadId: string } }) {
-  const { leadId } = params;
+export async function POST(req: NextRequest, { params }: { params: Promise<{ leadId: string }> }) {
+  const { leadId } = await params;
   const { type } = await req.json(); // type: CONTACT | ACCOUNT | ORDER | OPPORTUNITY
 
   // Lead'i bul

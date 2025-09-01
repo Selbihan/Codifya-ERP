@@ -34,22 +34,18 @@ import { prisma } from '@/lib/prisma';
 export async function GET() {
   try {
     const invoices = await prisma.invoice.findMany({
-      select: {
-        id: true,
-        customer: { select: { name: true } },
-        totalAmount: true,
-        issueDate: true,
-        status: true
-      }
+      include: {
+        customer: {
+          select: { name: true }
+        }
+      },
+      orderBy: {
+        issueDate: 'desc'
+      },
+      take: 50
     });
-    const result = invoices.map((inv: any) => ({
-      id: inv.id,
-      customer: inv.customer?.name || '',
-      amount: inv.totalAmount,
-      date: inv.issueDate,
-      status: inv.status
-    }));
-    return NextResponse.json({ invoices: result });
+    
+    return NextResponse.json(invoices);
   } catch (error) {
     return NextResponse.json({ error: 'Faturalar alınamadı.' }, { status: 500 });
   }
